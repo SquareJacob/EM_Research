@@ -1,0 +1,4 @@
+\frac{\partial H}{\partial t}=-\frac{1}\mu(\nabla\times E)\\
+\frac{\partial E}{\partial t}=\frac{1}\epsilon(\nabla\times H)\\
+E_0=(0,0,0)\\
+H_0=(0,\sqrt{\frac{\epsilon}{4\mu}}\sin(\pi x)\sin(\pi y)\sin(\pi z),0)

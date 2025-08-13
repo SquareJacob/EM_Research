@@ -1,0 +1,6 @@
+#Boundary   PEC                         Periodic
+#1          yz Analytic trig sum        Analytic trig rank-1
+#2          Nonanalytic initial trig    Analytic trig rank-max
+#3          Point trig source           yz Analytic trig sum
+#4          Analytic trig sum source    xy Analytic trig sum
+#5          xy Analytic trig sum        xyz Analytic trig sum

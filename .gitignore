@@ -1,9 +1,13 @@
 *
 !Tensor_Train
-Tensor_Train/*
 !Tensor_Train/TT.py
 !FDTD
 FDTD/*
 !FDTD/grid_comparison_torch.py
 !FDTD/solver.py
 !.gitignore
+!Solutions
+!Solutions/*
+!Explanations
+!Explanations/*
+!script.py

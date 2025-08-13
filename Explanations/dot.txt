@@ -1,0 +1,19 @@
+For TT-Tensors, $\mathcal{A},\mathcal{B}\in\mathbb{R}^{n_1\times\cdots\times n_d}$ with cores $A_1,\ldots,A_d$ and $B_1,\ldots,B_d$ and ranks $a_0,\ldots,a_d$ and $b_0,\ldots,b_d$. By definition, the dot product is given by
+\[\sum_{i_1,\ldots, i_d=1}^{n_1,\ldots,n_d}\left(\sum_{\alpha_0,\ldots,\alpha_d=1}^{a_0,\ldots,a_d}\prod_{k=1}^dA_k(\alpha_{k-1},i_k,\alpha_k)\right)\left(\sum_{\beta_0,\ldots,\beta_d=1}^{b_0,\ldots,b_d}\prod_{k=1}^dB_k(\beta_{k-1},i_k,\beta_k)\right)\]
+with $a_0=a_d=b_0=b_d=1$. This can be rewritten as
+\[\langle\mathcal{A},\mathcal{B}\rangle=\sum_{i_1,\ldots, i_d=1}^{n_1,\ldots,n_d}\sum_{\alpha_0,\ldots,\alpha_d=1}^{a_0,\ldots,a_d}\sum_{\beta_0,\ldots,\beta_d=1}^{b_0,\ldots,b_d}\prod_{k=1}^dA_k(\alpha_{k-1},i_k,\alpha_k)B_k(\beta_{k-1},i_k,\beta_k)\]
+Noting on how this is set up, creating matrices $V_i\in\mathbb{R}^{a_i\times b_i}$ recursively via
+\[V_1(\alpha_1,\beta_1)=\sum_{i_1=1}^{n_1}\sum_{\alpha_0=1}^{a_0}\sum_{\beta_0=1}^{b_0}A_1(\alpha_0,i_1,\alpha_1)B_1(\beta_0,i_1,\beta_1)\]
+\[V_{n+1}(\alpha_{n+1},\beta_{n+1})=\sum_{i_{n+1}=1}^{n_{n+1}}\sum_{\alpha_n=1}^{a_n}\sum_{\beta_n=1}^{b_n}A_{n+1}(\alpha_n,i_{n+1},\alpha_{n+1})B_{n+1}(\beta_n,i_{n+1},\beta_{n+1})V_n(\alpha_n,\beta_n)\]
+\textbf{Claim} For any $n\in\{1,\ldots,d\}, \alpha_n\in\{1,\ldots,a_n\},\beta_n\in\{1,\ldots,b_n\}$,
+\[V_n(\alpha_n,\beta_n)=\sum_{i_1,\ldots, i_n=1}^{n_1,\ldots,n_n}\sum_{\alpha_0,\ldots,\alpha_{n-1}=1}^{a_0,\ldots,a_{n-1}}\sum_{\beta_0,\ldots,\beta_{n-1}=1}^{b_0,\ldots,b_{n-1}}\prod_{k=1}^nA_k(\alpha_{k-1},i_k,\alpha_k)B_k(\beta_{k-1},i_k,\beta_k)\]
+\begin{proof}
+By definition, this is true for $n=1$. Assume it has been proven for some $n\in\{1,\ldots,d-1\}$. Then for any $\alpha_{n+1}\in\{1,\ldots,a_{n+1}\},\beta_{n+1}\in\{1,\ldots,b_{n+1}\}$
+\[V_{n+1}(\alpha_{n+1},\beta_{n+1})=\sum_{i_{n+1}=1}^{n_{n+1}}\sum_{\alpha_n=1}^{a_n}\sum_{\beta_n=1}^{b_n}A_{n+1}(\alpha_n,i_{n+1},\alpha_{n+1})B_{n+1}(\beta_n,i_{n+1},\beta_{n+1})V_n(\alpha_n,\beta_n)\]
+\[=\sum_{i_1,\ldots,i_{n+1}=1}^{n_1,\ldots,n_{n+1}}\sum_{\alpha_0,\ldots,\alpha_n=1}^{a_0,\ldots,a_n}\sum_{\beta_0,\ldots,\beta_n=1}^{b_0,\ldots,b_n}\prod_{k=1}^{n+1}A_k(\alpha_{k-1},i_k,\alpha_k)B_k(\beta_{k-1},i_k,\beta_k)\]
+Thus, by induction, the claim is true.
+\end{proof}
+Since $a_d=b_d=1$, this means
+\[V_d(1,1)=\sum_{i_1,\ldots, i_d=1}^{n_1,\ldots,n_d}\sum_{\alpha_0,\ldots,\alpha_d=1}^{a_0,\ldots,a_d}\sum_{\beta_0,\ldots,\beta_d=1}^{b_0,\ldots,b_d}\prod_{k=1}^dA_k(\alpha_{k-1},i_k,\alpha_k)B_k(\beta_{k-1},i_k,\beta_k)\]
+
+These $V$s is how the dot product is computed. The Frobenius Norm of $\mathcal{A}$ is simply $||\mathcal{A}|_F=|\sqrt{\langle\mathcal{A},\mathcal{A}\rangle}$, so the same procedure with a square root at the end can be used to calculate it.

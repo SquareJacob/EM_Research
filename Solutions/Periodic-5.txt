@@ -1,0 +1,20 @@
+\frac{\partial H}{\partial t}=-\frac{1}\mu(\nabla\times E)\\
+\frac{\partial E}{\partial t}=\frac{1}\epsilon(\nabla\times H)\\
+\\
+E=(\sum_{i=1}^{m}\cos(2i\pi x)\sin(2i\pi y)\sin(2i\pi z)\cos(t_it),c_y\sum_{i=1}^{m}\sin(2i\pi x)\cos(2i\pi y)\sin(2i\pi z)\cos(t_it),c_z\sum_{i=1}^{m}\sin(2i\pi x)\sin(2i\pi y)\cos(2i\pi z)\cos(t_it))\\
+
+H=(2(c_y-c_z)\sum_{i=1}^{m}\frac{i\pi}{\mu t_i}\sin(2i\pi x)\cos(2i\pi y)\cos(2i\pi z)\sin(t_it),(2c_z-2)\sum_{i=1}^{m}\frac{i\pi}{\mu t_i}\cos(2i\pi x)\sin(2i\pi y)\cos(2i\pi z)\sin(t_it),(2-2c_y)\sum_{i=1}^{m}\frac{i\pi}{\mu t_i}\cos(2i\pi x)\cos(2i\pi y)\sin(2i\pi z)\sin(t_it))\\
+
+\frac{\partial H}{\partial t}=(2(c_y-c_z)\sum_{i=1}^{m}\frac{i\pi}{\mu}\sin(2i\pi x)\cos(2i\pi y)\cos(2i\pi z)\cos(t_it),(2c_z-2)\sum_{i=1}^{m}\frac{i\pi}{\mu}\cos(2i\pi x)\sin(2i\pi y)\cos(2i\pi z)\cos(t_it),(2-2c_y)\sum_{i=1}^{m}\frac{i\pi}{\mu}\cos(2i\pi x)\cos(2i\pi y)\sin(2i\pi z)\cos(t_it))\\
+
+\nabla\times E=(2(c_z-c_y)\sum_{i=1}^{m}i\pi\sin(2i\pi x)\cos(2i\pi y)\cos(2i\pi z)\cos(t_it),(2-2c_z)\sum_{i=1}^{m}i\pi\cos(2i\pi x)\sin(2i\pi y)\cos(2i\pi z)\cos(t_it),(2c_y-2)\sum_{i=1}^{m}i\pi\cos(2i\pi x)\cos(2i\pi y)\sin(2i\pi z)\cos(t_it))\\
+
+\frac{\partial E}{\partial t}=(4(c_y+c_z-2)\sum_{i=1}^{m}\frac{i^2\pi^2}{\mu\epsilon t_i}\cos(2i\pi x)\sin(2i\pi y)\sin(2i\pi z)\sin(t_it),4(c_z-2c_y+1)\sum_{i=1}^{m}\frac{i^2\pi^2}{\mu\epsilon t_i}\sin(2i\pi x)\cos(2i\pi y)\sin(2i\pi z)\sin(t_it),4(c_y-2c_z+1)\sum_{i=1}^{m}\frac{i^2\pi^2}{\mu\epsilon t_i}\sin(2i\pi x)\sin(2i\pi y)\cos(2i\pi z)\sin(t_it))\\
+
+\nabla\times H=(4(c_y+c_z-2)\sum_{i=1}^{m}\frac{i^2\pi^2}{\mu t_i}\cos(2i\pi x)\sin(2i\pi y)\sin(2i\pi z)\sin(t_it),4(c_z-2c_y+1)\sum_{i=1}^{m}\frac{i^2\pi^2}{\mu t_i}\sin(2i\pi x)\cos(2i\pi y)\sin(2i\pi z)\sin(t_it),4(c_y-2c_z+1)\sum_{i=1}^{m}\frac{i^2\pi^2}{\mu t_i}\sin(2i\pi x)\sin(2i\pi y)\cos(2i\pi z)\sin(t_it))\\
+\\
+\begin{align*}
+4i^2\pi^2c_y+4i^2\pi^2c_z+\epsilon\mu t_i^2=8i^2\pi^2&\qquad \epsilon\mu t_i^2=8i^2\pi^2-8i^2\pi^2c&t_i=i\pi\sqrt{\frac{8(1-c)}{\epsilon\mu}}=2i\pi\sqrt{\frac{3}{\epsilon\mu}}\\
+-8i^2\pi^2c_y+4i^2\pi^2c_z+c_y\epsilon\mu t_i^2=-4i^2\pi^2&\qquad c_y=c_z=c&-8c^2+4c+4=0\to c=-\frac12\\
+4i^2\pi^2c_y-8i^2\pi^2c_z+c_z\epsilon\mu t_i^2=-4i^2\pi^2&\qquad6i^2\pi^2c_z+(\frac12c_y+1)\epsilon\mu t_i^2=6i^2\pi^2\qquad&-4c+c(8-8c)=-4\\
+\end{align*}\\

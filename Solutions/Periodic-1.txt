@@ -1,0 +1,9 @@
+\frac{\partial H}{\partial t}=-\frac{1}\mu(\nabla\times E)\\
+\frac{\partial E}{\partial t}=\frac{1}\epsilon(\nabla\times H)\\
+\\
+E=(\cos(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)),-\frac{1}2\cos(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)),\frac{1}2\cos(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)))\\
+H=(0,-\sqrt{\frac{3\epsilon}{4\mu}}\cos(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)),-\sqrt{\frac{3\epsilon}{4\mu}}\cos(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)))\\
+\nabla\times E=(0,3\pi\sin(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)),3\pi\sin(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)))\\
+\frac{\partial H}{\partial t}=(0,-\frac{3\pi}{\mu}\sin(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)),-\frac{3\pi}{\mu}\sin(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)))\\
+\nabla\times H=(2\pi\sqrt{\frac{3\epsilon}{\mu}}\sin(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)),-\pi\sqrt{\frac{3\epsilon}{\mu}}\sin(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)),\pi\sqrt{\frac{3\epsilon}{\mu}}\sin(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)))\\
+\frac{\partial E}{\partial t}=(2\pi\sqrt{\frac{3}{\mu\epsilon}}\sin(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)),-\pi\sqrt{\frac{3}{\mu\epsilon}}\sin(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)),\pi\sqrt{\frac{3}{\mu\epsilon}}\sin(2\pi(x+y-z-\sqrt{\frac{3}{\mu\epsilon}}t)))

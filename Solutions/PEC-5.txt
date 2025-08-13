@@ -1,0 +1,9 @@
+\frac{\partial H}{\partial t}=-\frac{1}\mu(\nabla\times E)\\
+\frac{\partial E}{\partial t}=\frac{1}\epsilon(\nabla\times H)\\
+\\
+E=(0, 0, \sum_{i=1}^{m}\sin(i\pi y)\sin(i\pi x)\cos(i\pi\sqrt{\frac{2}{\mu\epsilon}}t))\\
+H=(-\sqrt{\frac{\epsilon}{2\mu}}\sum_{i=1}^{m}\cos(i\pi y)\sin(i\pi x)\sin(i\pi\sqrt{\frac{2}{\mu\epsilon}}t),\sqrt{\frac{\epsilon}{2\mu}}\sum_{i=1}^{m}\sin(i\pi y)\cos(i\pi x)\sin(i\pi\sqrt{\frac{2}{\mu\epsilon}}t),0)\\
+\frac{\partial H}{\partial t}=(-\sum_{i=1}^{m}\frac{i\pi}{\mu}\cos(i\pi y)\sin(i\pi x)\cos(i\pi\sqrt{\frac{2}{\mu\epsilon}}t),\sum_{i=1}^{m}\frac{i\pi}{\mu}\sin(i\pi y)\cos(i\pi x)\cos(i\pi\sqrt{\frac{2}{\mu\epsilon}}t),0)\\
+\nabla\times E=(\sum_{i=1}^{m}i\pi\cos(i\pi y)\sin(i\pi x)\cos(i\pi\sqrt{\frac{2}{\mu\epsilon}}t),-\sum_{i=1}^{m}i\pi\sin(i\pi y)\cos(i\pi x)\cos(i\pi\sqrt{\frac{2}{\mu\epsilon}}t),0)\\
+\frac{\partial E}{\partial t}=(0, 0, -\sum_{i=1}^{m}i\pi\sqrt{\frac{2}{\mu\epsilon}}\sin(i\pi y)\sin(i\pi x)\sin(i\pi\sqrt{\frac{2}{\mu\epsilon}}t))\\
+\nabla\times H=(0,0,-\sum_{i=1}^{m}i\pi\sqrt{\frac{2\epsilon}{\mu}}\sin(i\pi y)\sin(i\pi x)\sin(i\pi\sqrt{\frac{2}{\mu\epsilon}}t))

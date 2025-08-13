@@ -1,0 +1,16 @@
+\frac{\partial H}{\partial t}=-\frac{1}\mu(\nabla\times E)\\
+\frac{\partial E}{\partial t}=\frac{1}\epsilon(\nabla\times H)\\
+\\
+E=(\sum_{i=1}^{m}\sin(2i\pi y)\sin(2i\pi z)\sin(t_it),-\sum_{i=1}^{m}\cos(2i\pi y)\sin(2i\pi z)\cos(t_it),\sum_{i=1}^{m}\sin(2i\pi y)\cos(2i\pi z)\cos(t_it))\\
+
+H=(-4\sum_{i=1}^{m}\frac{i\pi}{\mu t_i}\cos(2i\pi y)\cos(2i\pi z)\sin(t_it),2\sum_{i=1}^{m}\frac{i\pi}{\mu t_i}\sin(2i\pi y)\cos(2i\pi z)\cos(t_it),-2\sum_{i=1}^{m}\frac{i\pi}{\mu t_i}\cos(2i\pi y)\sin(2i\pi z)\cos(t_it))\\
+
+\frac{\partial H}{\partial t}=(-4\sum_{i=1}^{m}\frac{i\pi}{\mu}\cos(2i\pi y)\cos(2i\pi z)\cos(t_it),-2\sum_{i=1}^{m}\frac{i\pi}{\mu}\sin(2i\pi y)\cos(2i\pi z)\sin(t_it),2\sum_{i=1}^{m}\frac{i\pi}{\mu}\cos(2i\pi y)\sin(2i\pi z)\sin(t_it))\\
+
+\nabla\times E=(4\sum_{i=1}^{m}i\pi\cos(2i\pi y)\cos(2i\pi z)\cos(t_it),2\sum_{i=1}^{m}i\pi\sin(2i\pi y)\cos(2i\pi z)\sin(t_it),-2\sum_{i=1}^{m}i\pi\cos(2i\pi y)\sin(2i\pi z)\sin(t_it))\\
+
+\frac{\partial E}{\partial t}=(8\sum_{i=1}^{m}\frac{i^2\pi^2}{\mu\epsilon t_i}\sin(2i\pi y)\sin(2i\pi z)\cos(t_it),8\sum_{i=1}^{m}\frac{i^2\pi^2}{\mu\epsilon t_i}\cos(2i\pi y)\sin(2i\pi z)\sin(t_it),-8\sum_{i=1}^{m}\frac{i^2\pi^2}{\mu\epsilon t_i}\sin(2i\pi y)\cos(2i\pi z)\sin(t_it))\\
+
+\nabla\times H=(8\sum_{i=1}^{m}\frac{i^2\pi^2}{\mu t_i}\sin(2i\pi y)\sin(2i\pi z)\cos(t_it),8\sum_{i=1}^{m}\frac{i^2\pi^2}{\mu t_i}\cos(2i\pi y)\sin(2i\pi z)\sin(t_it),-8\sum_{i=1}^{m}\frac{i^2\pi^2}{\mu t_i}\sin(2i\pi y)\cos(2i\pi z)\sin(t_it))\\
+\\
+t_i=\frac{8i^2\pi^2}{\epsilon\mu t_i}\to t_i=2i\pi\sqrt{\frac{2}{\epsilon\mu}}\qquad \frac{4i\pi}{\mu t_i}=\frac{2}{\mu}\sqrt{\frac{\epsilon\mu}{2}}=\sqrt{\frac{2\epsilon}{\mu}}
