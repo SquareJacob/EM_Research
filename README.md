@@ -1,0 +1,1 @@
+Research into doing Finite-Difference Time-Domain (FDTD) using Tensor Train (TT) decomposition. Serves to connect local and remote codebase. Not all files used are actually here; only the shared files.
