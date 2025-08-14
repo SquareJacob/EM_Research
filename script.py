@@ -1,6 +1,7 @@
 from FDTD.grid_comparison_torch import full_test
 #Boundary, Solution, Simulation Type
 trials = [[b, s + 1, 1] for b in ["PEC", "Periodic"] for s in range (5)]
+trials = trials[3:]
 for i in [0, 2, 3, 5]:
     trials[i][2] = 2
 for trial in trials:
