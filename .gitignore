@@ -12,3 +12,5 @@ FDTD/*
 !Explanations/*
 !script.py
 !torch.sh
+!transfer
+!transfer/*
