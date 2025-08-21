@@ -1019,19 +1019,113 @@ class torchTT():
         return torchTT.TTarray(B, A.eps, A.caps)
     
     @staticmethod
-    def group_round(A: list[TTarray], thres: float = None) -> list[TTarray]:
+    def group_round(A: list[TTarray]) -> TTarray:
+        gpu = A[0][0].is_cuda
+        if gpu:
+            e = torch.cuda.Event(enable_timing = True)
+            e.record()
+            torchTT.events['round'].append(e)
+        else:
+            torchTT.times['round'] -= time.time()
+        delta = [a.eps / np.sqrt(len(a) - 1) for a in A]
+        dims = [a.dims() for a in A]
+        rmax = [np.prod(dims).item() for dim in dims]
+        B = []
+        for a in A:
+            if a.orthogonal:
+                B.append(a.cores.copy())
+            else:
+                B.append(torchTT.orthogonalize(a, True))
+        r1 = [1 for i in range(len(A))]
+        R = [0 for i in range(len(A))]
+        U = [0 for i in range(len(A))]
+        S = [0 for i in range(len(A))]
+        V = [0 for i in range(len(A))]
+        zero = [False for i in range(len(A))]
+        for i in range(len(A[0]) - 1):
+            if gpu:
+                e = torch.cuda.Event(enable_timing = True)
+                e.record()
+                torchTT.events['qr'].append(e)
+            else:
+                torchTT.times['qr'] -= time.time()
+            for j in range(len(A)):
+                if not zero[j]:
+                    B[j][i], R[j] =  torch.linalg.qr(B[j][i].reshape(r1[j] * dims[j][i], -1), 'reduced')
+            if gpu:
+                e = torch.cuda.Event(enable_timing = True)
+                e.record()
+                torchTT.events['qr'].append(e)
+                e = torch.cuda.Event(enable_timing = True)
+                e.record()
+                torchTT.events['svd'].append(e)
+            else:
+                torchTT.times['qr'] += time.time()
+                torchTT.times['svd'] -= time.time()
+            for j in range(len(A)):
+                if not zero[j]:
+                    U[j], S[j], V[j] = torch.linalg.svd(R[j], full_matrices = False)
+            if gpu:
+                e = torch.cuda.Event(enable_timing = True)
+                e.record()
+                torchTT.events['svd'].append(e)
+            else:
+                torchTT.times['svd'] += time.time()
+            s = max([torch.linalg.norm(sj).item() for sj in S])
+            if s == 0:
+                r1 = [1 for _ in range(len(A))]
+            else:
+                for j in range(len(A)):
+                    if zero[j]:
+                        continue
+                    if A[j].eps == 0:
+                        r1[j] = len(S[j])
+                    else:
+                        ep = delta[j] * s
+                        C = torch.cumsum(S[j].square().flip(0), dim=0)
+                        r1[j] = C.numel() - torch.searchsorted(C, ep * ep, right=False)
+                        del C
+                    r1[j] = min(r1[j], rmax[j])
+                    if r1[j] == 0:
+                        S[j] = torch.zeros((1))
+                        zero[j] = True
+                        B[j] = torchTT.zero_like(A[j]).cores
+            for j in range(len(A)):
+                if zero[j]:
+                    continue
+                B[j][i] = (B[j][i] @ U[j][:, :r1[j]]).reshape(-1, dims[j][i], r1[j])
+                B[j][i + 1] = (S[j][:r1[j], None] * V[j][:r1[j], :]) @ B[j][i + 1].reshape(V[j].shape[1], -1)
+        for j in range(len(A)):
+            if not zero[j]:
+                B[j][-1] = B[j][-1].reshape(-1, dims[j][-1], 1)
+        if gpu:
+            e = torch.cuda.Event(enable_timing = True)
+            e.record()
+            torchTT.events['round'].append(e)
+        else:
+            torchTT.times['round'] += time.time()
+        return [torchTT.TTarray(B[j], A[j].eps, A[j].caps) for j in range(len(A))]
+
+    @staticmethod
+    def group_round_zero(A: list[TTarray], thres: float = None) -> list[TTarray]:
         if thres is None:
             thres = torchTT.zero_thres
         if thres:
             norms = [a.norm(orthogonal = True) for a in A]
             norms = [0 if np.isnan(norm) else norm for norm in norms]
             rthres = thres * max(norms)
-            out = []
+            out = [0 for _ in A]
+            inr = [] #what to round
+            indr = [] #the indices of what is rounded
             for i in range(len(norms)):
                 if norms[i] > rthres:
-                    out.append(torchTT.round(A[i], A[i].eps, A[i].caps))
+                    inr.append(A[i])
+                    indr.append(i)
                 else:
-                    out.append(torchTT.zero_like(A[i]))
+                    out[i] = torchTT.zero_like(A[i])
+            outr = torchTT.group_round(inr)
+            for i in range(len(outr)):
+                out[indr[i]] = outr[i]
             return out
         else:
             return [torchTT.round(a, a.eps, a.caps) for a in A]
