@@ -1,6 +1,6 @@
 from __future__ import annotations
 import numpy as np
-from typing import Union, Literal, Callable
+from typing import Union, Literal, Callable, Tuple
 import torch
 import time
 import traceback
@@ -9,15 +9,20 @@ import traceback
 class TT():
     roundInPlus = True #Whether to automatically round after using any form of addition/subtraction operator
     firstFunc = lambda x, y: x
+    zero_thres = 0
     class TTarray():   
-        def __init__(self, A: Union[np.ndarray, list[np.ndarray], TT.TTarray], eps : float = 0, caps: list[int] = None):
+        def __init__(self, A: Union[np.ndarray, list[np.ndarray], TT.TTarray], eps : float = 0, caps: list[int] = None, norm: float = None, orthogonal: bool = False):
             if isinstance(A, TT.TTarray): #Shallow copy
                 self.eps = A.eps
                 self.caps = A.caps
                 self.cores = A.cores
+                self.mag = A.mag
+                self.orthogonal = A.orthogonal
             else:
                 self.eps = eps
                 self.caps = caps
+                self.mag = norm
+                self.orthogonal = orthogonal
                 if isinstance(A, list):
                     self.cores = A
                 else:
@@ -52,6 +57,8 @@ class TT():
             if isinstance(other, (int, float)):
                 copy = self.deepcopy()
                 copy.cores[-1] *= other
+                if copy.mag:
+                    copy.mag *= np.abs(other).item()
                 return copy
             else:
                 raise TypeError("TTarray can only be multiplied with scalar number")
@@ -82,16 +89,28 @@ class TT():
             return A.reshape(dims)
         
         #How this works is explained in dot.txt
-        def norm(self, rank_split: int = None, dtype = None) -> Union[float, np.ndarray]:
+        def norm(self, rank_split: int = None, dtype = None, orthogonal: bool = False) -> Union[float, np.ndarray]:
             """
             Takes the Frobenium norm of the tensor.\\
             If rank_split is given, then returns a vector whose length equals the rank, with each entry giving the norm using only the corresponding part of that rank.
             """
+            TT.times['norm'] -= time.time()
+            if rank_split is None:
+                if self.mag is not None:
+                    TT.times['norm'] += time.time()
+                    return self.mag
+                if self.orthogonal:
+                    TT.times['norm'] += time.time()
+                    return np.linalg.norm(self[0]).item()
+                if orthogonal:
+                    self.cores = TT.orthogonalize(self, True)
+                    self.orthogonal = True
+                    TT.times['norm'] += time.time()
+                    return np.linalg.norm(self[0]).item()
+                rank_split = len(self) + 123
             A = self
             if dtype is None:
                 dtype = A[0].dtype
-            if rank_split is None:
-                rank_split = len(A) + 123
             if rank_split > 1:
                 v = np.einsum('ijk,ljm->km', A[0].astype(dtype), A[0].astype(dtype))
             else:
@@ -106,6 +125,7 @@ class TT():
                 else:
                     v = np.einsum('inj,iln->jl', A[i].astype(dtype), np.einsum('jk,knl->jln', v, A[i].astype(dtype)))
             v = np.sqrt(v)
+            TT.times['norm'] += time.time()
             return v.item() if rank_split > i else v.reshape(-1)
         
         def size(self) -> int:
@@ -164,19 +184,26 @@ class TT():
     @staticmethod
     def build(A: np.ndarray, eps: float, caps: list[int] = None) -> list[np.ndarray]:
         dims = A.shape
-        delta = eps / np.sqrt(len(dims) - 1) * np.linalg.norm(A)
+        delta = eps / np.sqrt(len(dims) - 1)
         G = []
         r = [1] * (len(dims) + 1)
         C = A
         for i in range(len(dims) - 1):
             C = C.reshape(r[i] * dims[i], -1)
-            U, S, V = np.linalg.svd(C, full_matrices= False)
-            L = np.zeros_like(C)
-            for j in range(len(S)):
-                L += S[j] * np.dot(U[:, j:j + 1], V[j:j + 1, :])
-                r[i + 1] = j + 1
-                if np.linalg.norm(L - C, 'fro') <= delta:
-                    break
+            U, S, V = np.linalg.svd(C, full_matrices = False)
+            s = np.linalg.norm(S)
+            if s == 0:
+                r[i + 1] = 1
+            elif eps == 0:
+                r[i + 1] = len(S)
+            else:
+                ep = delta * s
+                C = np.cumsum(S[::-1] ** 2)
+                ff = np.nonzero(C  < ep * ep)[0]
+                if len(ff):
+                    r[i + 1] = len(C) - ff[-1] - 1
+                else:
+                    r[i + 1] = len(C)
             if caps:
                 r[i + 1] = min(r[i + 1], caps[i])
             G.append(U[:, 0:r[i + 1]].reshape(r[i], dims[i], r[i + 1]))
@@ -186,15 +213,34 @@ class TT():
 
    #See dot.txt in explanations for how this works    
     @staticmethod
-    def dot(A: TT, B: TT, dtype = None) -> float:
+    def dot(A: TTarray, B: TTarray, dtype = None) -> float:
         if dtype is None:
             dtype = A[0].dtype
         v = np.einsum('mki,mkj->ij', A[0].astype(dtype), B[0].astype(dtype))
         for i in range(1, len(A)):
             v = np.einsum('lmi,lmj->ij', A[i].astype(dtype), np.einsum('lk,kmj->lmj', v, B[i].astype(dtype)))
         return v.item()
-  
-    times = {'round': 0, 'qr': 0, 'svd': 0, 'add': 0}
+    
+    #https://arxiv.org/pdf/2110.04393, algorithm 2.1
+    @staticmethod
+    def orthogonalize(A: TTarray, as_cores: bool = False) -> list[np.ndarray]:
+        B = A.cores.copy()
+        for i in range(len(A) - 1, 0, -1):
+            TT.times['qr'] -= time.time()
+            B[i], R = np.linalg.qr(B[i].reshape(A[i].shape[0], -1).T, 'reduced')
+            TT.times['qr'] += time.time()
+            B[i] = B[i].T
+            B[i - 1] = A[i - 1].reshape(-1, R.shape[1]) @ R.T
+        if not as_cores:
+            return B
+        dims = A.dims()
+        r1 = 1
+        for i in range(len(dims)):
+            B[i] = B[i].reshape(r1, dims[i], -1)
+            r1 = B[i].shape[2]
+        return B
+
+    times = {'round': 0, 'qr': 0, 'svd': 0, 'add': 0, 'norm': 0}
     oldRound = False
     #https://arxiv.org/pdf/2110.04393, algorithm 2.2
     @staticmethod
@@ -206,25 +252,16 @@ class TT():
             return TT.round1(A, eps, caps)
         TT.times['round'] -= time.time()
         delta = eps / np.sqrt(len(A) - 1)
-        r = [1]
-        n = []
-        B = []
-        for g in A:
-            s = g.shape
-            r.append(s[2])
-            n.append(s[1])
-            B.append(g)
-        rmax = np.prod(n).item()
-        for i in range(len(A) - 1, 0, -1):
-            TT.times['qr'] -= time.time()
-            B[i], R = np.linalg.qr(B[i].reshape(r[i], n[i] * r[i + 1]).T, 'reduced')
-            TT.times['qr'] += time.time()
-            B[i] = B[i].T
-            B[i - 1] = A[i - 1].reshape(r[i - 1] * n[i - 1], r[i]) @ R.T
-            r[i] = R.shape[0]
+        dims = A.dims()
+        rmax = np.prod(dims).item()
+        if A.orthogonal:
+            B = A.cores.copy()
+        else:
+            B = TT.orthogonalize(A, True)
+        r1 = 1
         for i in range(len(A) - 1):
             TT.times['qr'] -= time.time()
-            B[i], R = np.linalg.qr(B[i].reshape(r[i] * n[i], r[i + 1]), 'reduced')
+            B[i], R = np.linalg.qr(B[i].reshape(r1 * dims[i], -1), 'reduced')
             TT.times['qr'] += time.time()
             TT.times['svd'] -= time.time()
             try:
@@ -254,12 +291,11 @@ class TT():
             r1 = min(r1, rmax)
             if caps:
                 r1 =  min(r1, caps[i])
-            B[i] = (B[i] @ U[:, :r1]).reshape(r[i], n[i], r1)
-            B[i + 1] = (S[:r1, None] * V[:r1, :]) @ B[i + 1].reshape(r[i + 1], n[i + 1] * r[i + 2])
-            r[i + 1] = r1
-        B[-1] = B[-1].reshape(r[-2], n[-1], r[-1])
+            B[i] = (B[i] @ U[:, :r1]).reshape(-1, dims[i], r1)
+            B[i + 1] = (S[:r1, None] * V[:r1, :]) @ B[i + 1].reshape(V.shape[1], -1)
+        B[-1] = B[-1].reshape(-1, dims[-1], 1)
         TT.times['round'] += time.time()
-        return TT.TTarray(B, A.eps, A.caps)
+        return TT.TTarray(B, A.eps, A.caps, np.linalg.norm(B[-1]))
 
     #https://github.com/oseledets/TT-Toolbox/blob/master/%40tt_tensor/round.m 
     @staticmethod
@@ -333,6 +369,24 @@ class TT():
             B[i] *= nrm0
         TT.times['round'] += time.time()
         return TT.TTarray(B, A.eps, A.caps)
+    
+    @staticmethod
+    def group_round(A: list[TTarray], thres: float = None) -> list[TTarray]:
+        if thres is None:
+            thres = TT.zero_thres
+        if thres:
+            norms = [a.norm(orthogonal = True) for a in A]
+            norms = [0 if np.isnan(norm) else norm for norm in norms]
+            rthres = thres * max(norms)
+            out = []
+            for i in range(len(norms)):
+                if norms[i] > rthres:
+                    out.append(TT.round(A[i], A[i].eps, A[i].caps))
+                else:
+                    out.append(TT.zero_like(A[i]))
+            return out
+        else:
+            return [TT.round(a, a.eps, a.caps) for a in A]
 
     addTime = 0
     addEpsFunc = min
@@ -353,6 +407,8 @@ class TT():
             epsFunc = TT.addEpsFunc
         if not capsFunc:
             capsFunc = TT.addCapsFunc
+        eps = epsFunc(A.eps, B.eps)
+        caps = capsFunc(A.caps, B.caps)
         C = [np.concatenate((A[0], B[0]), 2)]
         for i in range(1, len(A) - 1):
             a, b = A[i], B[i]
@@ -362,7 +418,7 @@ class TT():
             C.append(c)
         C.append(np.concatenate((A[-1], B[-1]), 0))
         TT.times['add'] += time.time()
-        return TT.TTarray(C, epsFunc(A.eps, B.eps), capsFunc(A.caps, B.caps))
+        return TT.TTarray(C, eps, caps)
     
     @staticmethod    
     def roll(A: TTarray, rolls: np.ndarray[int, int]) -> TTarray:
@@ -389,6 +445,9 @@ class TT():
         """
         if use_orig:
             B = A.deepcopy()
+            if B.mag == 0:
+                return B
+            B.mag = None
             for shift in shifts:
                 if padding:
                    if shift[0] < 0:
@@ -397,7 +456,6 @@ class TT():
                        B[shift[1]][:, shift[0]:, :] += shift[2] * B[shift[1]][:, :-shift[0], :]
                 else:
                     B[shift[1]] += shift[2] * np.roll(B[shift[1]], shift[0], 1)
-
             return B
         else:
             raise RuntimeError("rollsum without original not implemented :(")
@@ -411,6 +469,7 @@ class TT():
         :param indices: indices[i] specifies what to choose from dimension i. List gives specific slices, ':' means all, and a tuple means range
         """
         B = A.deepcopy()
+        B.mag = 0 if B.mag == 0 else None
         for i, index in enumerate(indices):
             if isinstance(index, list):
                 B[i] = B[i][:, index, :]
@@ -427,10 +486,12 @@ class TT():
 
         :param A: Tensor to use for summing
         :param dim: dimension to choose slices along
-        :indices: Specifies what to choose for each adding stewp, using same notation as reduce
-        :scalars: The scaler in each adding step
+        :param indices: Specifies what to choose for each adding stewp, using same notation as reduce
+        :param scalars: The scaler in each adding step
+        :param norm: How to calculate norm, if calculated. 0 is forward, 1 is backwards
         """
         B = A.deepcopy()
+        B.mag = 0 if B.mag == 0 else None
         for i, index in enumerate(indices):
             if i:
                 if isinstance(index, list):
@@ -448,7 +509,7 @@ class TT():
                     B[dim] = scalars[0] * B[dim][:, index:index+1, :]
                 elif isinstance(index, tuple):
                     B[dim] = scalars[0] * B[dim][:, index[0]:index[1], :]
-                else:
+                elif index == ':':
                     B[dim] *= scalars[0]
         return B
     
@@ -468,21 +529,31 @@ class TT():
             B[j] = np.zeros((s[0], s[1] + index[0], s[2]), dtype = A[j].dtype)
             B[j][:, index[1]:index[1]+s[1], :] = A[j]
         return B
+    
+    @staticmethod
+    def zero_like(A: TTarray) -> TTarray:
+        return TT.TTarray([np.zeros((1, a.shape[1], 1), dtype = a.dtype) for a in A], A.eps, A.caps, 0)
+          
 
 
 class torchTT():
     roundInPlus = True #Whether to automatically round after using any form of addition/subtraction operator
     preallocated = False
     firstFunc = lambda x, y: x
+    zero_thres = 0
     class TTarray():   
-        def __init__(self, A: Union[torch.Tensor, list[torch.Tensor], torchTT.TTarray], eps: float = 0, caps: list[int] = None):
+        def __init__(self, A: Union[torch.Tensor, list[torch.Tensor], torchTT.TTarray], eps: float = 0, caps: list[int] = None, norm: float = None, orthogonal: bool = False):
             if isinstance(A, torchTT.TTarray):
                 self.eps = A.eps
                 self.caps = A.caps
                 self.cores = A.cores
+                self.mag = A.mag
+                self.orthogonal = A.orthogonal
             else:
                 self.eps = eps
                 self.caps = caps
+                self.mag = norm
+                self.orthogonal = orthogonal
                 if isinstance(A, list):
                     self.cores = A
                 else:
@@ -523,6 +594,8 @@ class torchTT():
             if isinstance(other, (int, float)):
                 copy = self.deepcopy()
                 copy.cores[-1] *= other
+                if copy.mag:
+                    copy.mag *= np.abs(other).item()
                 return copy
             else:
                 raise TypeError("TTarray can only be multiplied with scalar number")
@@ -560,30 +633,69 @@ class torchTT():
             return A.reshape(dims)
         
         #How this works is explained in dot.txt
-        def norm(self, rank_split: int = None, dtype = None) -> Union[float, torch.Tensor]:
+        def norm(self, rank_split: int = None, dtype = None, orthogonal: bool = False) -> Union[float, torch.Tensor]:
             """
             Takes the Frobenium norm of the tensor.\\
             If rank_split is given, then returns a vector whose length equals the rank, with each entry giving the norm using only the corresponding part of that rank.
             """
+            gpu = self[0].is_cuda
+            if gpu:
+                e = torch.cuda.Event(enable_timing = True)
+                e.record()
+                torchTT.events['norm'].append(e)
+            else:
+                torchTT.times['norm'] -= time.time()
+            if rank_split is None:
+                if self.mag is not None:
+                    if gpu:
+                        e = torch.cuda.Event(enable_timing = True)
+                        e.record()
+                        torchTT.events['norm'].append(e)
+                    else:
+                        torchTT.times['norm'] += time.time()
+                    return self.mag
+                if self.orthogonal:
+                    if gpu:
+                        e = torch.cuda.Event(enable_timing = True)
+                        e.record()
+                        torchTT.events['norm'].append(e)
+                    else:
+                        torchTT.times['norm'] += time.time()
+                    return torch.linalg.norm(self[0]).item()
+                if orthogonal:
+                    self.cores = torchTT.orthogonalize(self, True)
+                    self.orthogonal = True
+                    if gpu:
+                        e = torch.cuda.Event(enable_timing = True)
+                        e.record()
+                        torchTT.events['norm'].append(e)
+                    else:
+                        torchTT.times['norm'] += time.time()
+                    return torch.linalg.norm(self[0]).item()
+                rank_split = len(A) + 123
             A = self
             if dtype is None:
                 dtype = A[0].dtype
-            if rank_split is None:
-                rank_split = len(A) + 123
             if rank_split > 1:
-                v = torch.einsum('ijk,ljm->km', A[0].astype(dtype), A[0].astype(dtype))
+                v = torch.einsum('ijk,ljm->km', A[0].to(dtype = dtype), A[0].to(dtype = dtype))
             else:
-                v = torch.einsum('ijk,ijk->k', A[0].astype(dtype), A[0].astype(dtype))
+                v = torch.einsum('ijk,ijk->k', A[0].to(dtype = dtype), A[0].to(dtype = dtype))
             for i in range(1, len(A)):
                 if i > rank_split:
-                    v = torch.einsum('inj,minl->mjl', A[i].astype(dtype), np.einsum('mik,knl->minl', v, A[i].astype(dtype)))
+                    v = torch.einsum('inj,minl->mjl', A[i].to(dtype = dtype), torch.einsum('mik,knl->minl', v, A[i].to(dtype = dtype)))
                 elif i == rank_split:
-                    v = torch.einsum('inj,inl->ijl', A[i].astype(dtype), np.einsum('i,inl->inl', v, A[i].astype(dtype)))
+                    v = torch.einsum('inj,inl->ijl', A[i].to(dtype = dtype), torch.einsum('i,inl->inl', v, A[i].to(dtype = dtype)))
                 elif i == rank_split - 1:
-                    v = torch.einsum('inj,inj->j', A[i].astype(dtype), np.einsum('ik,knj->inj', v, A[i].astype(dtype)))
+                    v = torch.einsum('inj,inj->j', A[i].to(dtype = dtype), torch.einsum('ik,knj->inj', v, A[i].to(dtype = dtype)))
                 else:
-                    v = torch.einsum('inj,iln->jl', A[i].astype(dtype), np.einsum('jk,knl->jln', v, A[i].astype(dtype)))
+                    v = torch.einsum('inj,iln->jl', A[i].to(dtype = dtype), torch.einsum('jk,knl->jln', v, A[i].to(dtype = dtype)))
             v = torch.sqrt(v)
+            if gpu:
+                e = torch.cuda.Event(enable_timing = True)
+                e.record()
+                torchTT.events['norm'].append(e)
+            else:
+                torchTT.times['norm'] += time.time()
             return v.item() if rank_split > i else v.reshape(-1)
         
         def size(self) -> int:
@@ -642,7 +754,7 @@ class torchTT():
     @staticmethod
     def build(A: torch.Tensor, eps: float, caps: list[int] = None) -> list[torch.Tensor]:
         dims = A.shape
-        delta = eps / np.sqrt(len(dims) - 1) * torch.linalg.norm(A)
+        delta = eps / np.sqrt(len(dims) - 1)
         G = []
         r = [1] * (len(dims) + 1)
         C = A
@@ -651,20 +763,22 @@ class torchTT():
             if i:
                 del U, S, V
             U, S, V = torch.linalg.svd(C, full_matrices= False)
-            L = torch.zeros_like(C)
-            for j in range(len(S)):
-                L += S[j] * torch.matmul(U[:, j:j + 1], V[j:j + 1, :])
-                r[i + 1] = j + 1
-                if torch.linalg.norm(L - C, 'fro') <= delta:
-                    del L
-                    break
+            #https://github.com/oseledets/TT-Toolbox/blob/master/core/my_chop2.m
+            s = torch.linalg.norm(S)
+            if s == 0:
+                r1 = 1
+            elif eps == 0:
+                r1 = len(S)
+            else:
+                ep = delta * s
+                C = torch.cumsum(S.square().flip(0), dim=0)
+                r1 = C.numel() - torch.searchsorted(C, ep * ep, right=False)
+                del C
             if caps:
-                r[i + 1] = min(r[i + 1], caps[i])
+                r1 =  min(r1, caps[i])
+            r[i + 1] = r1
             G.append(U[:, 0:r[i + 1]].reshape(r[i], dims[i], r[i + 1]))
-            #G.append(torch.reshape(U[:, 0:r[i + 1]], (r[i], dims[i], r[i + 1])))
             C = S[0:r[i + 1]][:, None] * V[0:r[i + 1], :]
-            #C = torch.matmul(torch.diag(S[0:r[i + 1]]), V[0:r[i + 1], :])
-        #G.append(torch.reshape(torch.matmul(torch.diag(S[0:r[-2]]), V[0:r[-2], :]), (r[-2], dims[-1], r[-1])))
         G.append((S[0:r[-2]][:, None] * V[0:r[-2], :]).reshape(r[-2], dims[-1], r[-1]))
         del U, S, V
         return G
@@ -674,14 +788,46 @@ class torchTT():
     def dot(A: TTarray, B: TTarray, dtype = None) -> float:
         if dtype is None:
             dtype = A[0].dtype
-        v = torch.einsum('mki,mkj->ij', A[0].astype(dtype), B[0].astype(dtype))
+        v = torch.einsum('mki,mkj->ij', A[0].to(dtype = dtype), B[0].to(dtype = dtype))
         for i in range(1, len(A)):
-            v = torch.einsum('lmi,lmj->ij', A[i].astype(dtype), torch.einsum('lk,kmj->lmj', v, B[i].astype(dtype)))
+            v = torch.einsum('lmi,lmj->ij', A[i].to(dtype = dtype), torch.einsum('lk,kmj->lmj', v, B[i].to(dtype = dtype)))
         return v.item()
     
+    #https://arxiv.org/pdf/2110.04393, algorithm 2.2
+    @staticmethod
+    def orthogonalize(A: TTarray, as_cores: bool = False) -> list[torch.Tensor]:
+        B = A.cores.copy()
+        gpu = A[0].is_cuda
+        for i in range(len(A) - 1, 0, -1):
+            if gpu:
+                e = torch.cuda.Event(enable_timing = True)
+                e.record()
+                torchTT.events['qr'].append(e)
+            else:
+                torchTT.times['qr'] -= time.time()
+            B[i], R = torch.linalg.qr(B[i].reshape(A[i].shape[0], -1).t(), 'reduced')
+            if gpu:
+                e = torch.cuda.Event(enable_timing = True)
+                e.record()
+                torchTT.events['qr'].append(e)
+            else:
+                torchTT.times['qr'] += time.time()
+            B[i] = B[i].t()
+            B[i - 1] = A[i - 1].reshape(-1, R.shape[1]) @ R.t()
+        if not as_cores:
+            return B
+        dims = A.dims()
+        r1 = 1
+        for i in range(len(dims)):
+            B[i] = B[i].reshape(r1, dims[i], -1)
+            r1 = B[i].shape[2]
+        return B
+            
+
+
     oldRound = False
-    times = {'round': 0, 'qr': 0, 'svd': 0, 'add': 0}
-    events = {'round': [], 'qr': [], 'svd': [], 'add': []}
+    times = {'round': 0, 'qr': 0, 'svd': 0, 'add': 0, 'norm': 0}
+    events = {'round': [], 'qr': [], 'svd': [], 'add': [], 'norm': []}
     #https://arxiv.org/pdf/2110.04393, algorithm 2.2
     @staticmethod
     def round(A: TTarray, eps: float, caps: list[int] = None) -> TTarray:
@@ -698,32 +844,13 @@ class torchTT():
         else:
             torchTT.times['round'] -= time.time()
         delta = eps / np.sqrt(len(A) - 1)
-        r = [1]
-        n = []
-        B = []
-        for g in A:
-            s = g.shape
-            r.append(s[2])
-            n.append(s[1])
-            B.append(g)
-        rmax = np.prod(n).item()
-        for i in range(len(A) - 1, 0, -1):
-            if gpu:
-                e = torch.cuda.Event(enable_timing = True)
-                e.record()
-                torchTT.events['qr'].append(e)
-            else:
-                torchTT.times['qr'] -= time.time()
-            B[i], R = torch.linalg.qr(B[i].reshape(r[i], n[i] * r[i + 1]).t(), 'reduced')
-            if gpu:
-                e = torch.cuda.Event(enable_timing = True)
-                e.record()
-                torchTT.events['qr'].append(e)
-            else:
-                torchTT.times['qr'] += time.time()
-            B[i] = B[i].t()
-            B[i - 1] = A[i - 1].reshape(r[i - 1] * n[i - 1], r[i]) @ R.t()
-            r[i] = R.shape[0]
+        dims = A.dims()
+        rmax = np.prod(dims).item()
+        if A.orthogonal:
+            B = A.cores.copy()
+        else:
+            B = torchTT.orthogonalize(A, True)
+        r1 = 1
         for i in range(len(A) - 1):
             if gpu:
                 e = torch.cuda.Event(enable_timing = True)
@@ -731,7 +858,7 @@ class torchTT():
                 torchTT.events['qr'].append(e)
             else:
                 torchTT.times['qr'] -= time.time()
-            B[i], R = torch.linalg.qr(B[i].reshape(r[i] * n[i], r[i + 1]), 'reduced')
+            B[i], R = torch.linalg.qr(B[i].reshape(r1 * dims[i], -1), 'reduced')
             if gpu:
                 e = torch.cuda.Event(enable_timing = True)
                 e.record()
@@ -763,10 +890,9 @@ class torchTT():
             r1 = min(r1, rmax)
             if caps:
                 r1 =  min(r1, caps[i])
-            B[i] = (B[i] @ U[:, :r1]).reshape(r[i], n[i], r1)
-            B[i + 1] = (S[:r1, None] * V[:r1, :]) @ B[i + 1].reshape(r[i + 1], n[i + 1] * r[i + 2])
-            r[i + 1] = r1
-        B[-1] = B[-1].reshape(r[-2], n[-1], r[-1])
+            B[i] = (B[i] @ U[:, :r1]).reshape(-1, dims[i], r1)
+            B[i + 1] = (S[:r1, None] * V[:r1, :]) @ B[i + 1].reshape(V.shape[1], -1)
+        B[-1] = B[-1].reshape(-1, dims[-1], 1)
         if gpu:
             e = torch.cuda.Event(enable_timing = True)
             e.record()
@@ -891,6 +1017,24 @@ class torchTT():
         else:
             torchTT.times['round'] += time.time()
         return torchTT.TTarray(B, A.eps, A.caps)
+    
+    @staticmethod
+    def group_round(A: list[TTarray], thres: float = None) -> list[TTarray]:
+        if thres is None:
+            thres = torchTT.zero_thres
+        if thres:
+            norms = [a.norm(orthogonal = True) for a in A]
+            norms = [0 if np.isnan(norm) else norm for norm in norms]
+            rthres = thres * max(norms)
+            out = []
+            for i in range(len(norms)):
+                if norms[i] > rthres:
+                    out.append(torchTT.round(A[i], A[i].eps, A[i].caps))
+                else:
+                    out.append(torchTT.zero_like(A[i]))
+            return out
+        else:
+            return [torchTT.round(a, a.eps, a.caps) for a in A]
 
     addTime = 0
     addEpsFunc = min
@@ -955,6 +1099,9 @@ class torchTT():
         """
         if use_orig:
             B = A.deepcopy()
+            if B.mag == 0:
+                return B
+            B.mag = None
             for shift in shifts:
                 if padding:
                    if shift[0] < 0:
@@ -1074,6 +1221,7 @@ class torchTT():
         :param indices: indices[i] specifies what to choose from dimension i. List gives specific slices, ':' means all, and a tuple means range
         """
         B = A.deepcopy()
+        B.mag = 0 if B.mag == 0 else None
         for i, index in enumerate(indices):
             if isinstance(index, list):
                 B[i] = B[i][:, index, :]
@@ -1094,6 +1242,7 @@ class torchTT():
         :scalars: The scaler in each adding step
         """
         B = A.deepcopy()
+        B.mag = 0 if B.mag == 0 else None
         for i, index in enumerate(indices):
             if i:
                 if isinstance(index, list):
@@ -1131,6 +1280,10 @@ class torchTT():
             B[j] = torch.zeros(s[0], s[1] + index[0], s[2], dtype = A[j].dtype, device = A[j].device)
             B[j][:, index[1]:index[1]+s[1], :] = A[j]
         return B
+    
+    @staticmethod
+    def zero_like(A: TTarray) -> TTarray:
+        return torchTT.TTarray([torch.zeros((1, a.shape[1], 1), dtype = a.dtype, device = a.device) for a in A], A.eps, A.caps, 0)
     
     @staticmethod
     def preallocate(size: int, dtype: torch.dtype = None, device: torch.device = None) -> None:

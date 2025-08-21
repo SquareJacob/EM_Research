@@ -18,3 +18,4 @@ H=(2(c_y-c_z)\sum_{i=1}^{m}\frac{i\pi}{\mu t_i}\sin(2i\pi x)\cos(2i\pi y)\cos(2i
 -8i^2\pi^2c_y+4i^2\pi^2c_z+c_y\epsilon\mu t_i^2=-4i^2\pi^2&\qquad c_y=c_z=c&-8c^2+4c+4=0\to c=-\frac12\\
 4i^2\pi^2c_y-8i^2\pi^2c_z+c_z\epsilon\mu t_i^2=-4i^2\pi^2&\qquad6i^2\pi^2c_z+(\frac12c_y+1)\epsilon\mu t_i^2=6i^2\pi^2\qquad&-4c+c(8-8c)=-4\\
 \end{align*}\\
+(2c-2)\frac{i\pi}{\mu t_i}=-3\sqrt{\frac{\epsilon}{12\mu}}

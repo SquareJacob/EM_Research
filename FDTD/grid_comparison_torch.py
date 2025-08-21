@@ -7,7 +7,7 @@ from typing import Literal, Tuple, Union
 
 #IMPORTANT: While the code itself may not be written as optimally as possible, the algorithms are
 
-def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, sizes: Tuple[int], simulation_type: int, npy: bool, error: float = 0, caps: Union[list[list[int]], Literal['d']] = 'd', m: int = 10, a: Tuple[int, int] = (-0.488, 0.145), device: Literal['cpu', 'cuda'] = 'cuda', eps: float = 8.854e-12, mu: float = np.pi * 4e-7):
+def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, sizes: Tuple[int], simulation_type: int, npy: bool, error: float = 0, caps: Union[list[list[int]], Literal['d']] = 'd', zero_thres: float = 0, m: int = 10, a: Tuple[int, int] = (-0.488, 0.145), device: Literal['cpu', 'cuda'] = 'cuda', save_type: int = 0, eps: float = 8.854e-12, mu: float = np.pi * 4e-7):
     """
     Full Test Run of FDTD, with assumed order of Ex, Ey, Ez, Hx, Hy, Hz.
 
@@ -19,9 +19,11 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
     :param npy: Whether to use numpy or torch
     :param error: error threshold for TT
     :param caps: Caps to use for each TT-tensor. Each solution has default optimal caps
+    :param zero_thres: Relative threshold needed for zeroing-out tensor
     :param m: the m for solutions it is used in
     :param a: the a for solutions it is used in
     :param device: what device to use if pytorch; cpu always used for numpy
+    :param save_type: How to save results when simulation_type = 0; 0 = Nothing saved, 1 = End saved, 2 = All saved, 3 = All error saved
     :param eps: value for epsilon
     :param mu: value for mu
     """
@@ -30,6 +32,15 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
     c = 1/np.sqrt(mu * eps).item()
     grid_size = sizes[0]
     end_size = sizes[1]
+    order = 'Ex,Ey,Ez,Hx,Hy,Hz'.split(',') #Ordering for operations done on everything
+    yee = { #Yee grid and inital times
+        'Ex': (1, 0, 0, 0),
+        'Ey': (0, 1, 0, 0),
+        'Ez': (0, 0, 1, 0),
+        'Hx': (0, 1, 1, -1/2),
+        'Hy': (1, 0, 1, -1/2),
+        'Hz': (1, 1, 0, -1/2)
+    }
     if len(sizes) > 2:
         solver_size = sizes[2]
     else:
@@ -50,9 +61,11 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
     precision = torch.float64
     TT.roundInPlus = False
     TT.oldRound = False
+    TT.zero_thres = zero_thres
 
-    #Default caps
-    if caps == 'd':
+    if caps == None:
+        caps = [None for i in range(6)]
+    if caps == 'd': #Default caps
         caps = [None for i in range(6)]
         if boundary == "PEC":
             if solution in [1, 4]:
@@ -72,6 +85,7 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                 caps = [[n, 1] for i in range(6)]
             elif solution == 5:
                 caps = [[n, n] for i in range(6)]
+                caps[3] = [1, 1]
 
     #Figuring out simulation from boundary and solution number
     analytic = True
@@ -99,249 +113,183 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
     else:
         print(f'Simulation: {ending} with error {error} and caps {caps} and {"numpy" if npy else "torch"}', flush = True)
 
-    if not analytic: #Approximate non-analytic solutions using pre-solved solution
+    EHk = ['solver', 'basic', 'TT', 'solved', 'saved']
+    EH = {k: {} for k in EHk}
+    ixer = {k: tuple(slice(yee[k][i], None, 2) for i in range(3)) for k in order} #indexing when using half-spaced grid
+
+    if not analytic: #Approximate non-analytic solutions using pre-solved solution using interpolation
         if simulation_type > 0:
-            solved_Ex = np.load(os.path.join(ending, 'Ex.npy'))
-            solved_Ey = np.load(os.path.join(ending, 'Ey.npy'))
-            solved_Ez = np.load(os.path.join(ending, 'Ez.npy'))
-            solved_Hx = np.load(os.path.join(ending, 'Hx.npy'))
-            solved_Hy = np.load(os.path.join(ending, 'Hy.npy'))
-            solved_Hz = np.load(os.path.join(ending, 'Hz.npy'))
+            if boundary == 'PEC':
+                su = np.linspace(0, 1, 2 * solver_size - 1, dtype = precision if npy else pre2)
+            elif boundary == 'Periodic':
+                su = np.linspace(1 / solver_size / 2, 1, 2 * solver_size, dtype = precision if npy else pre2)
             from scipy.interpolate import RegularGridInterpolator
-            su = np.linspace(0, 1, 2 * solver_size - 1, dtype = precision if npy else pre2)
-            solved_Ex = RegularGridInterpolator((su[1::2], su[::2], su[::2]), solved_Ex)
-            solved_Ey = RegularGridInterpolator((su[::2], su[1::2], su[::2]), solved_Ey)
-            solved_Ez = RegularGridInterpolator((su[::2], su[::2], su[1::2]), solved_Ez)
-            solved_Hx = RegularGridInterpolator((su[::2], su[1::2], su[1::2]), solved_Hx)
-            solved_Hy = RegularGridInterpolator((su[1::2], su[::2], su[1::2]), solved_Hy)
-            solved_Hz = RegularGridInterpolator((su[1::2], su[1::2], su[::2]), solved_Hz)
-    elif boundary == "PEC": #Otherwise, setup analytic solution
-        if solution == 1:
-            def solved_Ex(x, y, z, t):
-                s = x * 0
-                for i in range(1, n + 1):
-                    s += np.sin(np.pi * i * y) * np.sin(np.pi * i * z) * np.cos(np.pi * np.sqrt(2) * c * t * i)
-                return s
-
-            def solved_Ey(x, y, z, t):
-                return 0 * x
-
-            def solved_Ez(x, y, z, t):
-                return 0 * x
-
-            def solved_Hx(x, y, z, t):
-                return 0 * x
-
-            def solved_Hy(x, y, z, t):
-                s = 0 * x
-                for i in range(1, n + 1):
-                    s -= np.sin(np.pi * i * y) * np.cos(np.pi * i * z) * np.sin(np.pi * np.sqrt(2) * c * t * i)
-                return np.sqrt(eps / (2 * mu)).item() * s
-
-            def solved_Hz(x, y, z, t):
-                s = 0 * x
-                for i in range(1, n + 1):
-                    s += np.cos(np.pi * i * y) * np.sin(np.pi * i * z) * np.sin(np.pi * np.sqrt(2) * c * t * i)
-                return np.sqrt(eps / (2 * mu)).item() * s
-        elif solution == 4:
-            def solved_Ex(x, y, z, t):
-                s = x * 0
-                for i in range(1, n + 1):
-                    s += np.sin(np.pi * i * y) * np.sin(np.pi * i * z) * np.cos(np.pi * 2 * c * t * i)
-                return s
-        
-            def solved_Ey(x, y, z, t):
-                return 0 * x
-        
-            def solved_Ez(x, y, z, t):
-                return 0 * x
-        
-            def solved_Hx(x, y, z, t):
-                return 0 * x
-        
-            def solved_Hy(x, y, z, t):
-                s = 0 * x
-                for i in range(1, n + 1):
-                    s -= np.sin(np.pi * i * y) * np.cos(np.pi * i * z) * np.sin(np.pi * 2 * c * t * i)
-                return np.sqrt(eps / mu).item() * s / 2
-        
-            def solved_Hz(x, y, z, t):
-                s = 0 * x
-                for i in range(1, n + 1):
-                    s += np.cos(np.pi * i * y) * np.sin(np.pi * i * z) * np.sin(np.pi * 2 * c * t * i)
-                return np.sqrt(eps / mu).item() * s / 2
-        elif solution == 5:
-            def solved_Ex(x, y, z, t):
-                return 0 * z
-        
-            def solved_Ey(x, y, z, t):
-                return 0 * z
-        
-            def solved_Ez(x, y, z, t):
-                s = z * 0
-                for i in range(1, n + 1):
-                    s += np.sin(np.pi * i * y) * np.sin(np.pi * i * x) * np.cos(np.pi * np.sqrt(2) * c * t * i)
-                return s
-
-            def solved_Hx(x, y, z, t):
-                s = 0 * z
-                for i in range(1, n + 1):
-                    s -= np.cos(np.pi * i * y) * np.sin(np.pi * i * x) * np.sin(np.pi * np.sqrt(2) * c * t * i)
-                return np.sqrt(eps / (2 * mu)).item() * s
-
-            def solved_Hy(x, y, z, t):
-                s = 0 * z
-                for i in range(1, n + 1):
-                    s += np.sin(np.pi * i * y) * np.cos(np.pi * i * x) * np.sin(np.pi * np.sqrt(2) * c * t * i)
-                return np.sqrt(eps / (2 * mu)).item() * s
-        
-            def solved_Hz(x, y, z, t):
-                return 0 * z
-    elif boundary == "Periodic":
-        if solution == 1:
-            def solved_Ex(x, y, z, t):
-                return np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t))
-
-            def solved_Ey(x, y, z, t):
-                return -0.5 * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t))
-
-            def solved_Ez(x, y, z, t):
-                return 0.5 * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t))
-
-            def solved_Hx(x, y, z, t):
-                return 0 * x
-
-            def solved_Hy(x, y, z, t):
-                return -np.sqrt(3 * eps / mu) / 2  * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t))
-
-            def solved_Hz(x, y, z, t):
-                return -np.sqrt(3 * eps / mu) / 2  * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t))
-        elif solution == 2:
-            def solved_Ex(x, y, z, t):
-                return np.cos(2 * np.pi * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t)))
-            
-            def solved_Ey(x, y, z, t):
-                return -0.5 * np.cos(2 * np.pi * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t)))
-            
-            def solved_Ez(x, y, z, t):
-                return 0.5 * np.cos(2 * np.pi * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t)))
-            
-            def solved_Hx(x, y, z, t):
-                return 0 * x
-            
-            def solved_Hy(x, y, z, t):
-                return -np.sqrt(3 * eps / mu).item() / 2  * np.cos(2 * np.pi * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t)))
-            
-            def solved_Hz(x, y, z, t):
-                return -np.sqrt(3 * eps / mu).item() / 2  * np.cos(2 * np.pi * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t)))
-        elif solution == 3:
-            def solved_Ex(x, y, z, t):
-                s = x * 0
-                for i in range(1, n + 1):
-                    s += np.sin(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
-                return s
-
-            def solved_Ey(x, y, z, t):
-                s = x * 0
-                for i in range(1, n + 1):
-                    s -= np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
-                return s
-
-            def solved_Ez(x, y, z, t):
-                s = x * 0
-                for i in range(1, n + 1):
-                    s += np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
-                return s
-
-            def solved_Hx(x, y, z, t):
-                s = 0 * x
-                for i in range(1, n + 1):
-                    s -= np.cos(2 * np.pi * i * y) * np.cos(2 * np.pi * i * z) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
-                return np.sqrt(2 * eps / mu).item() * s
-
-            def solved_Hy(x, y, z, t):
-                s = 0 * x
-                for i in range(1, n + 1):
-                    s += np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
-                return np.sqrt(eps / mu / 2).item() * s
-
-            def solved_Hz(x, y, z, t):
-                s = 0 * x
-                for i in range(1, n + 1):
-                    s -= np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
-                return np.sqrt(eps / mu / 2).item() * s
-        elif solution == 4:
-            def solved_Ex(x, y, z, t):
-                s = z * 0
-                for i in range(1, n + 1):
-                    s += np.sin(2 * np.pi * i * x) * np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
-                return s
-
-            def solved_Ey(x, y, z, t):
-                s = z * 0
-                for i in range(1, n + 1):
-                    s -= np.cos(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
-                return s
-
-            def solved_Ez(x, y, z, t):
-                s = z * 0
-                for i in range(1, n + 1):
-                    s += np.sin(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
-                return s
-
-            def solved_Hx(x, y, z, t):
-                s = z * 0
-                for i in range(1, n + 1):
-                    s -= np.sin(2 * np.pi * i * x) * np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
-                return np.sqrt(eps / mu / 2).item() * s
-
-            def solved_Hy(x, y, z, t):
-                s = z * 0
-                for i in range(1, n + 1):
-                    s += np.cos(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
-                return np.sqrt(eps / mu / 2).item() * s
-
-            def solved_Hz(x, y, z, t):
-                s = z * 0
-                for i in range(1, n + 1):
-                    s += np.sin(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
-                return np.sqrt(2 * eps / mu).item() * s
-        elif solution == 5:
-            def solved_Ex(x, y, z, t):
-                s = x * 0
-                for i in range(1, n + 1):
-                    s += np.cos(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.cos(np.pi * np.sqrt(12).item() * c * i * t)
-                return s
-
-            def solved_Ey(x, y, z, t):
-                s = x * 0
-                for i in range(1, n + 1):
-                    s += np.sin(2 * np.pi * i * x) * np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.cos(np.pi * np.sqrt(12).item() * c * i * t)
-                return s / 2
-
-            def solved_Ez(x, y, z, t):
-                s = x * 0
-                for i in range(1, n + 1):
-                    s -= np.sin(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * i * z) * np.cos(np.pi * np.sqrt(12).item() * c * i * t)
-                return s / 2
-
-            def solved_Hx(x, y, z, t):
-                return 0 * x
-
-            def solved_Hy(x, y, z, t):
-                s = 0 * x
-                for i in range(1, n + 1):
-                    s -= np.cos(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * i * z) * np.sin(np.pi * np.sqrt(12).item() * c * i * t)
-                return np.sqrt(eps / 12 / mu) * s
-
-            def solved_Hz(x, y, z, t):
-                s = 0 * x
-                for i in range(1, n + 1):
-                    s += np.cos(2 * np.pi * i * x) * np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.sin(np.pi * np.sqrt(12).item() * c * i * t)
-                return np.sqrt(eps / 12 / mu) * s
+            for d in order:
+                EH['solver'][d] = RegularGridInterpolator(tuple(su[ixer[d][i]] for i in range(3)), np.load(os.path.join(ending, f'{d}.npy')))
+    else: #Otherwise, setup analytic solution
+        if boundary == "PEC": 
+            if solution == 1:
+                def solved(x, y, z, t, d):
+                    s = np.zeros_like(x)
+                    match d:
+                        case 'Ex':
+                            for i in range(1, n + 1):
+                                s += np.sin(np.pi * i * y) * np.sin(np.pi * i * z) * np.cos(np.pi * np.sqrt(2) * c * t * i)
+                        case 'Hy':
+                            for i in range(1, n + 1):
+                                s -= np.sin(np.pi * i * y) * np.cos(np.pi * i * z) * np.sin(np.pi * np.sqrt(2) * c * t * i)
+                            return np.sqrt(eps / (2 * mu)).item() * s
+                        case 'Hz':
+                            for i in range(1, n + 1):
+                                s += np.cos(np.pi * i * y) * np.sin(np.pi * i * z) * np.sin(np.pi * np.sqrt(2) * c * t * i)
+                            return np.sqrt(eps / (2 * mu)).item() * s
+                    return s
+            elif solution == 4:
+                def solved(x, y, z, t, d):
+                    s = np.zeros_like(x)
+                    match d:
+                        case 'Ex':
+                            for i in range(1, n + 1):
+                                s += np.sin(np.pi * i * y) * np.sin(np.pi * i * z) * np.cos(np.pi * 2 * c * t * i)
+                        case 'Hy':
+                            for i in range(1, n + 1):
+                                s -= np.sin(np.pi * i * y) * np.cos(np.pi * i * z) * np.sin(np.pi * 2 * c * t * i)
+                            return np.sqrt(eps / mu).item() * s / 2
+                        case 'Hz':
+                            for i in range(1, n + 1):
+                                s += np.cos(np.pi * i * y) * np.sin(np.pi * i * z) * np.sin(np.pi * 2 * c * t * i)
+                            return np.sqrt(eps / mu).item() * s / 2
+                    return s
+            elif solution == 5:
+                def solved(x, y, z, t, d):
+                    s = np.zeros_like(z)
+                    match d:
+                        case 'Ez':
+                            for i in range(1, n + 1):
+                                s += np.sin(np.pi * i * y) * np.sin(np.pi * i * x) * np.cos(np.pi * np.sqrt(2) * c * t * i)
+                        case 'Hx':
+                            for i in range(1, n + 1):
+                                s -= np.cos(np.pi * i * y) * np.sin(np.pi * i * x) * np.sin(np.pi * np.sqrt(2) * c * t * i)
+                            return np.sqrt(eps / (2 * mu)).item() * s
+                        case 'Hy':
+                            for i in range(1, n + 1):
+                                s += np.sin(np.pi * i * y) * np.cos(np.pi * i * x) * np.sin(np.pi * np.sqrt(2) * c * t * i)
+                            return np.sqrt(eps / (2 * mu)).item() * s
+                    return s
+        elif boundary == "Periodic":
+            if solution == 1:
+                def solved(x, y, z, t, d):
+                    match d:
+                        case 'Ex':
+                            return np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t))
+                        case 'Ey':
+                            return -0.5 * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t))
+                        case 'Ez':
+                            return 0.5 * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t))
+                        case 'Hx':
+                            return np.zeros_like(x)
+                        case 'Hy':
+                            return -np.sqrt(3 * eps / mu) / 2  * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t))
+                        case 'Hz':
+                            return -np.sqrt(3 * eps / mu) / 2  * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t))
+            elif solution == 2:
+                def solved(x, y, z, t, d):
+                    match d:
+                        case 'Ex':
+                            return np.cos(2 * np.pi * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t)))
+                        case 'Ey':
+                            return -0.5 * np.cos(2 * np.pi * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t)))
+                        case 'Ez':
+                            return 0.5 * np.cos(2 * np.pi * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t)))
+                        case 'Hx':
+                            return np.zeros_like(x)
+                        case 'Hy':
+                            return -np.sqrt(3 * eps / mu).item() / 2  * np.cos(2 * np.pi * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t)))
+                        case 'Hz':
+                            return -np.sqrt(3 * eps / mu).item() / 2  * np.cos(2 * np.pi * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t)))
+            elif solution == 3:
+                def solved(x, y, z, t, d):
+                    s = np.zeros_like(x)
+                    match d:
+                        case 'Ex':
+                            for i in range(1, n + 1):
+                                s += np.sin(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                        case 'Ey':
+                            for i in range(1, n + 1):
+                                s -= np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                        case 'Ez':
+                            for i in range(1, n + 1):
+                                s += np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                        case 'Hx':
+                            for i in range(1, n + 1):
+                                s -= np.cos(2 * np.pi * i * y) * np.cos(2 * np.pi * i * z) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                            return np.sqrt(2 * eps / mu).item() * s
+                        case 'Hy':
+                            for i in range(1, n + 1):
+                                s += np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                            return np.sqrt(eps / mu / 2).item() * s
+                        case 'Hz':
+                            for i in range(1, n + 1):
+                                s -= np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                            return np.sqrt(eps / mu / 2).item() * s
+                    return s
+            elif solution == 4:
+                def solved(x, y, z, t, d):
+                    s = np.zeros_like(z)
+                    match d:
+                        case 'Ex':
+                            for i in range(1, n + 1):
+                                s += np.sin(2 * np.pi * i * x) * np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                        case 'Ey':
+                            for i in range(1, n + 1):
+                                s -= np.cos(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                        case 'Ez':
+                            for i in range(1, n + 1):
+                                s += np.sin(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                        case 'Hx':
+                            for i in range(1, n + 1):
+                                s -= np.sin(2 * np.pi * i * x) * np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                            return np.sqrt(eps / mu / 2).item() * s
+                        case 'Hy':
+                            for i in range(1, n + 1):
+                                s += np.cos(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                            return np.sqrt(eps / mu / 2).item() * s
+                        case 'Hz':
+                            for i in range(1, n + 1):
+                                s += np.sin(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                            return np.sqrt(2 * eps / mu).item() * s
+                    return s
+            elif solution == 5:
+                def solved(x, y, z, t, d):
+                    s = np.zeros_like(z)
+                    match d:
+                        case 'Ex':
+                            for i in range(1, n + 1):
+                                s += np.cos(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.cos(np.pi * np.sqrt(12).item() * c * i * t)
+                            return s
+                        case 'Ey':
+                            for i in range(1, n + 1):
+                                s -= np.sin(2 * np.pi * i * x) * np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.cos(np.pi * np.sqrt(12).item() * c * i * t)
+                            return s / 2
+                        case 'Ez':
+                            for i in range(1, n + 1):
+                                s -= np.sin(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * i * z) * np.cos(np.pi * np.sqrt(12).item() * c * i * t)
+                            return s / 2
+                        case 'Hx':
+                            return s
+                        case 'Hy':
+                            for i in range(1, n + 1):
+                                s -= np.cos(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * i * z) * np.sin(np.pi * np.sqrt(12).item() * c * i * t)
+                            return np.sqrt(eps / mu * 3 / 4) * s
+                        case 'Hz':
+                            for i in range(1, n + 1):
+                                s += np.cos(2 * np.pi * i * x) * np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.sin(np.pi * np.sqrt(12).item() * c * i * t)
+                            return np.sqrt(eps / mu * 3 / 4) * s
+        for d in order:
+            EH['solver'][d] =lambda x,y,z,t: solved(x,y,z,t,d)
 
     info = {
-        i: [] for i in 'grids,basic_times,tt_times,round_times,qr_times,svd_times,add_times,basic_errors,tt_errors,basic_sizes,tt_sizes,ranks'.split(',')
+        i: [] for i in 'grids,basic_times,tt_times,round_times,qr_times,svd_times,add_times,norm_times,basic_errors,tt_errors,basic_sizes,tt_sizes,ranks'.split(',')
     }
     info["ranks"] = [[[] for j in range(6)] for i in range(2)]
 
@@ -368,65 +316,59 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
         #Create Tensors; Assume appropirate yee cell for both H at each half integer timestep and E at each integer timestep
         if analytic:
             if npy:
-                Exb = solved_Ex(X[1::2, ::2, ::2], Y[1::2, ::2, ::2], Z[1::2, ::2, ::2], 0)
-                Eyb = solved_Ey(X[::2, 1::2, ::2], Y[::2, 1::2, ::2], Z[::2, 1::2, ::2], 0)
-                Ezb = solved_Ez(X[::2, ::2, 1::2], Y[::2, ::2, 1::2], Z[::2, ::2, 1::2], 0)
-                Hxb = solved_Hx(X[::2, 1::2, 1::2], Y[::2, 1::2, 1::2], Z[::2, 1::2, 1::2], -t / 2)
-                Hyb = solved_Hy(X[1::2, ::2, 1::2], Y[1::2, ::2, 1::2], Z[1::2, ::2, 1::2], -t / 2)
-                Hzb = solved_Hz(X[1::2, 1::2, ::2], Y[1::2, 1::2, ::2], Z[1::2, 1::2, ::2], -t / 2)
+                for d in order:
+                    EH['basic'][d] = EH['solver'][d](X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t)
             else:
-                Exb = torch.tensor(solved_Ex(X[1::2, ::2, ::2].cpu().numpy(), Y[1::2, ::2, ::2].cpu().numpy(), Z[1::2, ::2, ::2].cpu().numpy(), 0), device = device, dtype = precision)
-                Eyb = torch.tensor(solved_Ey(X[::2, 1::2, ::2].cpu().numpy(), Y[::2, 1::2, ::2].cpu().numpy(), Z[::2, 1::2, ::2].cpu().numpy(), 0), device = device, dtype = precision)
-                Ezb = torch.tensor(solved_Ez(X[::2, ::2, 1::2].cpu().numpy(), Y[::2, ::2, 1::2].cpu().numpy(), Z[::2, ::2, 1::2].cpu().numpy(), 0), device = device, dtype = precision)
-                Hxb = torch.tensor(solved_Hx(X[::2, 1::2, 1::2].cpu().numpy(), Y[::2, 1::2, 1::2].cpu().numpy(), Z[::2, 1::2, 1::2].cpu().numpy(), -t / 2), device = device, dtype = precision)
-                Hyb = torch.tensor(solved_Hy(X[1::2, ::2, 1::2].cpu().numpy(), Y[1::2, ::2, 1::2].cpu().numpy(), Z[1::2, ::2, 1::2].cpu().numpy(), -t / 2), device = device, dtype = precision)
-                Hzb = torch.tensor(solved_Hz(X[1::2, 1::2, ::2].cpu().numpy(), Y[1::2, 1::2, ::2].cpu().numpy(), Z[1::2, 1::2, ::2].cpu().numpy(), -t / 2), device = device, dtype = precision)
+                for d in order:
+                    EH['basic'][d] = torch.tensor(EH['solver'][d](X[ixer[d]].cpu().numpy(), Y[ixer[d]].cpu().numpy(), Z[ixer[d]].cpu().numpy(), yee[d][3] * t), device = device, dtype = precision)
         elif boundary == "PEC":
             if solution == 2:
-                Exb = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
-                Hyb = np.sqrt(eps/mu) * 2 * torch.sin(np.pi * (X[1::2, ::2, 1::2] + c * t / 2)) * torch.sin(np.pi * (Y[1::2, ::2, 1::2] + c * t / 2)) * torch.sin(np.pi * (Z[1::2, ::2, 1::2] + c * t / 2))
-                Hzb = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
+                EH['basic']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
+                EH['basic']['Hy'] = np.sqrt(eps/mu) * 2 * torch.sin(np.pi * (X[1::2, ::2, 1::2] + c * t / 2)) * torch.sin(np.pi * (Y[1::2, ::2, 1::2] + c * t / 2)) * torch.sin(np.pi * (Z[1::2, ::2, 1::2] + c * t / 2))
+                EH['basic']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
             elif solution == 3:
-                Exb = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
-                Hyb = torch.zeros((grid_size - 1, grid_size, grid_size - 1), device = device, dtype = precision)
-                Hzb = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
-            Eyb = torch.zeros((grid_size, grid_size - 1, grid_size), device = device, dtype = precision)
-            Ezb = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
-            Hxb = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
+                EH['basic']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
+                EH['basic']['Hy'] = torch.zeros((grid_size - 1, grid_size, grid_size - 1), device = device, dtype = precision)
+                EH['basic']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
+            EH['basic']['Ey'] = torch.zeros((grid_size, grid_size - 1, grid_size), device = device, dtype = precision)
+            EH['basic']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
+            EH['basic']['Hx'] = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
         if boundary == "PEC":
-            Exb[:, :, 0] = 0
-            Exb[:, :, -1] = 0
-            Exb[:, 0, :] = 0
-            Exb[:, -1, :] = 0
-            Eyb[:, :, 0] = 0
-            Eyb[:, :, -1] = 0
-            Eyb[0, :, :] = 0
-            Eyb[-1, :, :] = 0
-            Ezb[0, :, :] = 0
-            Ezb[-1, :, :] = 0
-            Ezb[:, 0, :] = 0
-            Ezb[:, -1, :] = 0
+            EH['basic']['Ex'][:, :, 0] = 0
+            EH['basic']['Ex'][:, :, -1] = 0
+            EH['basic']['Ex'][:, 0, :] = 0
+            EH['basic']['Ex'][:, -1, :] = 0
+            EH['basic']['Ey'][:, :, 0] = 0
+            EH['basic']['Ey'][:, :, -1] = 0
+            EH['basic']['Ey'][0, :, :] = 0
+            EH['basic']['Ey'][-1, :, :] = 0
+            EH['basic']['Ez'][0, :, :] = 0
+            EH['basic']['Ez'][-1, :, :] = 0
+            EH['basic']['Ez'][:, 0, :] = 0
+            EH['basic']['Ez'][:, -1, :] = 0
         
+
         if not npy:
             del x, X, Y, Z
             torch.cuda.empty_cache()
 
         if simulation_type == 0:
+            if save_type in [2, 3]:
+                for d in order:
+                    EH['saved'][d] = torch.zeros((iters * grid_size + 1, *EH['basic'][d].shape), device = device, dtype = precision)
+                    EH['saved'][d][0, :, :, :] = EH['basic'][d]
             if source and solution == 4:
                 if npy:
                     X = -np.pi * c * t * np.array([np.outer(np.sin(j * np.pi * gu[::2][1:-1]), np.sin(j * np.pi * gu[::2][1:-1])) for j in range(1, n + 1)])
                 else:
                     X = -np.pi * c * t * torch.tensor(np.array([np.outer(np.sin(j * np.pi * gu[::2][1:-1]), np.sin(j * np.pi * gu[::2][1:-1])) for j in range(1, n + 1)]), device = device, dtype = precision)
         else:
-            Ext = TT.TTarray(Exb, error, caps[0])
-            Eyt = TT.TTarray(Eyb, error, caps[1])
-            Ezt = TT.TTarray(Ezb, error, caps[2])
-            Hxt = TT.TTarray(Hxb, error, caps[3])
-            Hyt = TT.TTarray(Hyb, error, caps[4])
-            Hzt = TT.TTarray(Hzb, error, caps[5])
+            for i, d in enumerate(order):
+                EH['TT'][d] = TT.TTarray(EH['basic'][d], error, caps[i])
             if simulation_type == 1:
                 if not npy:
-                    del Exb, Eyb, Ezb, Hxb, Hyb, Hzb
+                    for d in order:
+                        del EH['basic'][d]
             if source:
                 if solution == 3:
                     P = TT.TTarray([torch.zeros((1, i, 1), device = device, dtype = precision) for i in [grid_size - 1, grid_size, grid_size]], error)
@@ -439,8 +381,8 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                         X = -np.pi * c * t * np.array([np.outer(np.sin(j * np.pi * gu[::2][1:-1]), np.sin(j * np.pi * gu[::2][1:-1])) for j in range(1, n + 1)])
                     else:
                         X = -np.pi * c * t * torch.tensor(np.array([np.outer(np.sin(j * np.pi * gu[::2][1:-1]), np.sin(j * np.pi * gu[::2][1:-1])) for j in range(1, n + 1)]), device = device, dtype = precision)
-            lranks = [i.ranks()[1:3] for i in [Ext, Eyt, Ezt, Hxt, Hyt, Hzt]]
-            tt_size = Hxt.nbytes() + Hyt.nbytes() + Hzt.nbytes() + Ext.nbytes() + Eyt.nbytes() + Ezt.nbytes()
+            lranks = [EH['TT'][d].ranks()[1:3] for d in order]
+            tt_size = sum([EH['TT'][d].nbytes() for d in order])
 
         for key in TT.times.keys():
             TT.times[key] = 0
@@ -458,74 +400,68 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                 else:           
                     basic_time -= time.time()
                 if boundary == "Periodic":
-                    Hxb += mu1 * (roll(Ezb, -1, 1) - Ezb - roll(Eyb, -1, 2) + Eyb)
-                    Hyb += mu1 * (roll(Exb, -1, 2) - Exb - roll(Ezb, -1, 0) + Ezb)
-                    Hzb += mu1 * (roll(Eyb, -1, 0) - Eyb - roll(Exb, -1, 1) + Exb)
-                    Exb += eps1 * (Hzb - roll(Hzb, 1, 1) - Hyb + roll(Hyb, 1, 2))
-                    Eyb += eps1 * (Hxb - roll(Hxb, 1, 2) - Hzb + roll(Hzb, 1, 0))
-                    Ezb += eps1 * (Hyb - roll(Hyb, 1, 0) - Hxb + roll(Hxb, 1, 1))
+                    EH['basic']['Hx'] += mu1 * (roll(EH['basic']['Ez'], -1, 1) - EH['basic']['Ez'] - roll(EH['basic']['Ey'], -1, 2) + EH['basic']['Ey'])
+                    EH['basic']['Hy'] += mu1 * (roll(EH['basic']['Ex'], -1, 2) - EH['basic']['Ex'] - roll(EH['basic']['Ez'], -1, 0) + EH['basic']['Ez'])
+                    EH['basic']['Hz'] += mu1 * (roll(EH['basic']['Ey'], -1, 0) - EH['basic']['Ey'] - roll(EH['basic']['Ex'], -1, 1) + EH['basic']['Ex'])
+                    EH['basic']['Ex'] += eps1 * (EH['basic']['Hz'] - roll(EH['basic']['Hz'], 1, 1) - EH['basic']['Hy'] + roll(EH['basic']['Hy'], 1, 2))
+                    EH['basic']['Ey'] += eps1 * (EH['basic']['Hx'] - roll(EH['basic']['Hx'], 1, 2) - EH['basic']['Hz'] + roll(EH['basic']['Hz'], 1, 0))
+                    EH['basic']['Ez'] += eps1 * (EH['basic']['Hy'] - roll(EH['basic']['Hy'], 1, 0) - EH['basic']['Hx'] + roll(EH['basic']['Hx'], 1, 1))
                 elif boundary == "PEC":
-                    Hxb += mu1 * (Ezb[:, 1:, :] - Ezb[:, :-1, :] - Eyb[:, :, 1:] + Eyb[:, :, :-1])
-                    Hyb += mu1 * (Exb[:, :, 1:] - Exb[:, :, :-1] - Ezb[1:, :, :] + Ezb[:-1, :, :])
-                    Hzb += mu1 * (Eyb[1:, :, :] - Eyb[:-1, :, :] - Exb[:, 1:, :] + Exb[:, :-1, :])
-                    Exb[:, 1:-1, 1:-1] += eps1 * (Hzb[:, 1:, 1:-1] - Hzb[:, :-1, 1:-1] - Hyb[:, 1:-1, 1:] + Hyb[:, 1:-1, :-1])
-                    Eyb[1:-1, :, 1:-1] += eps1 * (Hxb[1:-1, :, 1:] - Hxb[1:-1, :, :-1] - Hzb[1:, :, 1:-1] + Hzb[:-1, :, 1:-1])
-                    Ezb[1:-1, 1:-1, :] += eps1 * (Hyb[1:, 1:-1, :] - Hyb[:-1, 1:-1, :] - Hxb[1:-1, 1:, :] + Hxb[1:-1, :-1, :])
+                    EH['basic']['Hx'] += mu1 * (EH['basic']['Ez'][:, 1:, :] - EH['basic']['Ez'][:, :-1, :] - EH['basic']['Ey'][:, :, 1:] + EH['basic']['Ey'][:, :, :-1])
+                    EH['basic']['Hy'] += mu1 * (EH['basic']['Ex'][:, :, 1:] - EH['basic']['Ex'][:, :, :-1] - EH['basic']['Ez'][1:, :, :] + EH['basic']['Ez'][:-1, :, :])
+                    EH['basic']['Hz'] += mu1 * (EH['basic']['Ey'][1:, :, :] - EH['basic']['Ey'][:-1, :, :] - EH['basic']['Ex'][:, 1:, :] + EH['basic']['Ex'][:, :-1, :])
+                    EH['basic']['Ex'][:, 1:-1, 1:-1] += eps1 * (EH['basic']['Hz'][:, 1:, 1:-1] - EH['basic']['Hz'][:, :-1, 1:-1] - EH['basic']['Hy'][:, 1:-1, 1:] + EH['basic']['Hy'][:, 1:-1, :-1])
+                    EH['basic']['Ey'][1:-1, :, 1:-1] += eps1 * (EH['basic']['Hx'][1:-1, :, 1:] - EH['basic']['Hx'][1:-1, :, :-1] - EH['basic']['Hz'][1:, :, 1:-1] + EH['basic']['Hz'][:-1, :, 1:-1])
+                    EH['basic']['Ez'][1:-1, 1:-1, :] += eps1 * (EH['basic']['Hy'][1:, 1:-1, :] - EH['basic']['Hy'][:-1, 1:-1, :] - EH['basic']['Hx'][1:-1, 1:, :] + EH['basic']['Hx'][1:-1, :-1, :])
                     if source:
                         if solution == 3:
                             if i < grid_size:
                                 T = (i + 1) * 2 * np.pi / grid_size
                                 x = (a[0] * np.sin(T) + a[1] * 2 * np.sin(2 * T) - (a[0] + 4 * a[1]) / 3 * np.sin(3 * T)) * grid_size * grid_size
-                                Exb[grid_size // 2, grid_size // 2, grid_size // 2] += x
+                                EH['basic']['Ex'][grid_size // 2, grid_size // 2, grid_size // 2] += x
                         elif solution == 4:
                             x = sum([j * np.sin(2 * j * np.pi * c * t * (i + 0.5)) * X[j - 1, :, :] for j in range(1, n + 1)])
-                            Exb[:, 1:-1, 1:-1] += x
+                            EH['basic']['Ex'][:, 1:-1, 1:-1] += x
                 if device == 'cuda':
                     events[1].record()
                 else:           
                     basic_time += time.time()
+                if simulation_type == 0:
+                    if save_type in [2, 3]:
+                        for d in order:
+                            EH['saved'][d][i + 1, :, :, :] = EH['basic'][d]
             if simulation_type > 0:
                 if device == 'cuda':
                     events[2].record()
                 else:           
                     tt_time -= time.time()
                 if boundary == "Periodic":
-                    Hxt += mu1 * (Eyt.rollsum([[-1, 2, -1]]) - Ezt.rollsum([[-1, 1, -1]]))
-                    Hyt += mu1 * (Ezt.rollsum([[-1, 0, -1]]) - Ext.rollsum([[-1, 2, -1]]))
-                    Hzt += mu1 * (Ext.rollsum([[-1, 1, -1]]) - Eyt.rollsum([[-1, 0, -1]]))
+                    EH['TT']['Hx'] += mu1 * (EH['TT']['Ey'].rollsum([[-1, 2, -1]]) - EH['TT']['Ez'].rollsum([[-1, 1, -1]]))
+                    EH['TT']['Hy'] += mu1 * (EH['TT']['Ez'].rollsum([[-1, 0, -1]]) - EH['TT']['Ex'].rollsum([[-1, 2, -1]]))
+                    EH['TT']['Hz'] += mu1 * (EH['TT']['Ex'].rollsum([[-1, 1, -1]]) - EH['TT']['Ey'].rollsum([[-1, 0, -1]]))
                     if not TT.roundInPlus:
-                        Hxt = Hxt.round()
-                        Hyt = Hyt.round()
-                        Hzt = Hzt.round()
-                    Ext += eps1 * (Hzt.rollsum([[1, 1, -1]]) - Hyt.rollsum([[1, 2, -1]]))
-                    Eyt += eps1 * (Hxt.rollsum([[1, 2, -1]]) - Hzt.rollsum([[1, 0, -1]]))
-                    Ezt += eps1 * (Hyt.rollsum([[1, 0, -1]]) - Hxt.rollsum([[1, 1, -1]]))
+                        EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz'] = TT.group_round((EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz']))
+                    EH['TT']['Ex'] += eps1 * (EH['TT']['Hz'].rollsum([[1, 1, -1]]) - EH['TT']['Hy'].rollsum([[1, 2, -1]]))
+                    EH['TT']['Ey'] += eps1 * (EH['TT']['Hx'].rollsum([[1, 2, -1]]) - EH['TT']['Hz'].rollsum([[1, 0, -1]]))
+                    EH['TT']['Ez'] += eps1 * (EH['TT']['Hy'].rollsum([[1, 0, -1]]) - EH['TT']['Hx'].rollsum([[1, 1, -1]]))
                     if not TT.roundInPlus:
-                        Ext = Ext.round()
-                        Eyt = Eyt.round()
-                        Ezt = Ezt.round()
+                        EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez'] = TT.group_round((EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez']))
                 elif boundary == "PEC":
-                    Hxt += mu1 * (Ezt.reducedSum(1, [(1, None), (0, -1)], [1, -1]) - Eyt.reducedSum(2, [(1, None), (0, -1)], [1, -1]))
-                    Hyt += mu1 * (Ext.reducedSum(2, [(1, None), (0, -1)], [1, -1]) - Ezt.reducedSum(0, [(1, None), (0, -1)], [1, -1]))
-                    Hzt += mu1 * (Eyt.reducedSum(0, [(1, None), (0, -1)], [1, -1]) - Ext.reducedSum(1, [(1, None), (0, -1)], [1, -1]))
+                    EH['TT']['Hx'] += mu1 * (EH['TT']['Ez'].reducedSum(1, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Ey'].reducedSum(2, [(1, None), (0, -1)], [1, -1]))
+                    EH['TT']['Hy'] += mu1 * (EH['TT']['Ex'].reducedSum(2, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Ez'].reducedSum(0, [(1, None), (0, -1)], [1, -1]))
+                    EH['TT']['Hz'] += mu1 * (EH['TT']['Ey'].reducedSum(0, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Ex'].reducedSum(1, [(1, None), (0, -1)], [1, -1]))
                     if not TT.roundInPlus:
-                        Hxt = Hxt.round()
-                        Hyt = Hyt.round()
-                        Hzt = Hzt.round()
-                    Ext += eps1 * (Hzt.reduce([':', ':', (1, -1)]).reducedSum(1, [(1, None), (0, -1)], [1, -1]) - Hyt.reduce([':', (1, -1), ':']).reducedSum(2, [(1, None), (0, -1)], [1, -1])).pad([1, 2], [[2, 1], [2, 1]])
-                    Eyt += eps1 * (Hxt.reduce([(1, -1), ':', ':']).reducedSum(2, [(1, None), (0, -1)], [1, -1]) - Hzt.reduce([':', ':', (1, -1)]).reducedSum(0, [(1, None), (0, -1)], [1, -1])).pad([0, 2], [[2, 1], [2, 1]])
-                    Ezt += eps1 * (Hyt.reduce([':', (1, -1), ':']).reducedSum(0, [(1, None), (0, -1)], [1, -1]) - Hxt.reduce([(1, -1), ':', ':']).reducedSum(1, [(1, None), (0, -1)], [1, -1])).pad([0, 1], [[2, 1], [2, 1]])
-                    if not TT.roundInPlus:
-                        Ext = Ext.round()
-                        Eyt = Eyt.round()
-                        Ezt = Ezt.round()
+                        EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz'] = TT.group_round((EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz']))
+                    EH['TT']['Ex'] += eps1 * (EH['TT']['Hz'].reduce([':', ':', (1, -1)]).reducedSum(1, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Hy'].reduce([':', (1, -1), ':']).reducedSum(2, [(1, None), (0, -1)], [1, -1])).pad([1, 2], [[2, 1], [2, 1]])
+                    EH['TT']['Ey'] += eps1 * (EH['TT']['Hx'].reduce([(1, -1), ':', ':']).reducedSum(2, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Hz'].reduce([':', ':', (1, -1)]).reducedSum(0, [(1, None), (0, -1)], [1, -1])).pad([0, 2], [[2, 1], [2, 1]])
+                    EH['TT']['Ez'] += eps1 * (EH['TT']['Hy'].reduce([':', (1, -1), ':']).reducedSum(0, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Hx'].reduce([(1, -1), ':', ':']).reducedSum(1, [(1, None), (0, -1)], [1, -1])).pad([0, 1], [[2, 1], [2, 1]])
                     if source:
                         if solution == 3:
                             if i < grid_size:
                                 T = (i + 1) * 2 * np.pi / grid_size
                                 x = (a[0] * np.sin(T) + a[1] * 2 * np.sin(2 * T) - (a[0] + 4 * a[1]) / 3 * np.sin(3 * T)) * grid_size * grid_size
                                 P[1][0, grid_size // 2, 0] = x
-                                Ext += P
+                                EH['TT']['Ex'] += P
                         elif solution == 4:
                             if npy:
                                 P[1][0, 1:-1, :] = np.array([np.sin(2 * j * np.pi * c * t * (i + 0.5)) * np.sin(j * np.pi * gu[::2][1:-1]) for j in range(1, n + 1)]).T
@@ -533,16 +469,18 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                             else:
                                 P[1][0, 1:-1, :] = torch.tensor(np.array([np.sin(2 * j * np.pi * c * t * (i + 0.5)) * np.sin(j * np.pi * gu[::2][1:-1]) for j in range(1, n + 1)]).T, device = device, dtype = precision)
                                 P[2][:, 1:-1, 0] = torch.tensor(np.array([j * np.sin(j * np.pi * gu[::2][1:-1]) for j in range(1, n + 1)]), device = device, dtype = precision)
-                            Ext += P
+                            EH['TT']['Ex'] += P
+                    if not TT.roundInPlus:
+                        EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez'] = TT.group_round((EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez']))
                 if device == 'cuda':
                     events[3].record()
                 else:           
                     tt_time += time.time()
-                for j in range(6):
-                    eranks = [Ext, Eyt, Ezt, Hxt, Hyt, Hzt][j].ranks()
+                for j, d in enumerate(order):
+                    eranks = EH['TT'][d].ranks()
                     lranks[j][0] = max(lranks[j][0], eranks[1])
                     lranks[j][1] = max(lranks[j][1], eranks[2])
-                    tt_size = max(Hxt.nbytes() + Hyt.nbytes() + Hzt.nbytes() + Ext.nbytes() + Eyt.nbytes() + Ezt.nbytes(), tt_size)
+                tt_size = max(sum([EH['TT'][d].nbytes() for d in order]), tt_size)
             if device == 'cuda':
                 torch.cuda.synchronize()
                 if simulation_type != 1:
@@ -556,25 +494,55 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
         #After simulation; data fetching
         if simulation_type == 0:
             print(basic_time, flush = True)
+            if save_type > 0:
+                os.makedirs(ending, exist_ok = True)
+            if save_type == 3:
+                if analytic:
+                    for d in order:
+                        EH['solved'][d] = EH['solver'][d](*np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), (np.arange(iters * grid_size + 1) + yee[d][3]) * t, indexing = 'ij')).transpose(3, 0, 1, 2)
             if not npy:
-                del Exb, Eyb, Ezb, Hxb, Hyb, Hzb
+                if save_type == 1:
+                    for d in order:
+                        np.save(os.path.join(ending, d), EH['basic'][d].cpu().numpy())
+                elif save_type == 2:
+                    for d in order:
+                        np.save(os.path.join(ending, d), EH['saved'][d].cpu().numpy())
+                        del EH['saved'][d]
+                elif save_type == 3:
+                    np.save(os.path.join(ending, 'err'), (np.sqrt(
+                        (
+                            (
+                                np.sum((EH['saved']['Ex'].cpu().numpy() - EH['solved']['Ex']) ** 2, axis = tuple(i + 1 for i in range(3))) +
+                                np.sum((EH['saved']['Ey'].cpu().numpy() - EH['solved']['Ey']) ** 2, axis = tuple(i + 1 for i in range(3))) +
+                                np.sum((EH['saved']['Ez'].cpu().numpy() - EH['solved']['Ez']) ** 2, axis = tuple(i + 1 for i in range(3)))
+                            ) / (np.sum(EH['solved']['Ex'] ** 2, axis = tuple(i + 1 for i in range(3))) + np.sum(EH['solved']['Ey'] ** 2, axis = tuple(i + 1 for i in range(3))) + np.sum(EH['solved']['Ez'] ** 2, axis = tuple(i + 1 for i in range(3)))) + 
+                            (
+                                np.sum((EH['saved']['Hx'].cpu().numpy() - EH['solved']['Hx']) ** 2, axis = tuple(i + 1 for i in range(3))) +
+                                np.sum((EH['saved']['Hy'].cpu().numpy() - EH['solved']['Hy']) ** 2, axis = tuple(i + 1 for i in range(3))) +
+                                np.sum((EH['saved']['Hz'].cpu().numpy() - EH['solved']['Hz']) ** 2, axis = tuple(i + 1 for i in range(3)))
+                            ) / (np.sum(EH['solved']['Hx'] ** 2, axis = tuple(i + 1 for i in range(3))) + np.sum(EH['solved']['Hy'] ** 2, axis = tuple(i + 1 for i in range(3))) + np.sum(EH['solved']['Hz'] ** 2, axis = tuple(i + 1 for i in range(3))))
+                        )
+                    )))
+                    for d in order:
+                        del EH['saved'][d]
+                for d in order:
+                    del EH['basic'][d]
                 if source and solution == 4:
                     del X
+            else:
+                if save_type == 1:
+                    for d in order:
+                        np.save(os.path.join(ending, d), EH['basic'][d])
+                elif save_type in [2, 3]:
+                    for d in order:
+                        np.save(os.path.join(ending, d), EH['saved'][d])
         else:
             if not analytic:
-                Exs = solved_Ex(np.meshgrid(gu[1::2], gu[::2], gu[::2], indexing = 'ij'))
-                Eys = solved_Ey(np.meshgrid(gu[::2], gu[1::2], gu[::2], indexing = 'ij'))
-                Ezs = solved_Ez(np.meshgrid(gu[::2], gu[::2], gu[1::2], indexing = 'ij'))
-                Hxs = solved_Hx(np.meshgrid(gu[::2], gu[1::2], gu[1::2], indexing = 'ij'))
-                Hys = solved_Hy(np.meshgrid(gu[1::2], gu[::2], gu[1::2], indexing = 'ij'))
-                Hzs = solved_Hz(np.meshgrid(gu[1::2], gu[1::2], gu[::2], indexing = 'ij'))
+                for d in order:
+                    EH['solved'][d] = EH['solver'][d](np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'))
             else:
-                Exs = solved_Ex(*np.meshgrid(gu[1::2], gu[::2], gu[::2], indexing = 'ij'), iters * grid_size * t)
-                Eys = solved_Ey(*np.meshgrid(gu[::2], gu[1::2], gu[::2], indexing = 'ij'), iters * grid_size * t)
-                Ezs = solved_Ez(*np.meshgrid(gu[::2], gu[::2], gu[1::2], indexing = 'ij'), iters * grid_size * t)
-                Hxs = solved_Hx(*np.meshgrid(gu[::2], gu[1::2], gu[1::2], indexing = 'ij'), (iters * grid_size - 0.5) * t)
-                Hys = solved_Hy(*np.meshgrid(gu[1::2], gu[::2], gu[1::2], indexing = 'ij'), (iters * grid_size - 0.5) * t)
-                Hzs = solved_Hz(*np.meshgrid(gu[1::2], gu[1::2], gu[::2], indexing = 'ij'), (iters * grid_size - 0.5) * t)
+                for d in order:
+                    EH['solved'][d] = EH['solver'][d](*np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'), (iters * grid_size + yee[d][3]) * t)
 
             #Error calculations based on https://www.sciencedirect.com/science/article/pii/S0378475423001313, as seen in 5.1
             if npy:
@@ -583,15 +551,15 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                         np.sqrt(
                                 (
                                     (
-                                        np.sum((Exb - Exs).astype(np.float64) ** 2) +
-                                        np.sum((Eyb - Eys).astype(np.float64) ** 2) +
-                                        np.sum((Ezb - Ezs).astype(np.float64) ** 2)
-                                    ) / (np.sum(Exs ** 2) + np.sum(Eys ** 2) + np.sum(Ezs ** 2)) + 
+                                        np.sum((EH['basic']['Ex'] - EH['solved']['Ex']).astype(np.float64) ** 2) +
+                                        np.sum((EH['basic']['Ey'] - EH['solved']['Ey']).astype(np.float64) ** 2) +
+                                        np.sum((EH['basic']['Ez'] - EH['solved']['Ez']).astype(np.float64) ** 2)
+                                    ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2)) + 
                                     (
-                                        np.sum((Hxb - Hxs).astype(np.float64) ** 2) +
-                                        np.sum((Hyb - Hys).astype(np.float64) ** 2) +
-                                        np.sum((Hzb - Hzs).astype(np.float64) ** 2)
-                                    ) / (np.sum(Hxs ** 2) + np.sum(Hys ** 2) + np.sum(Hzs ** 2))
+                                        np.sum((EH['basic']['Hx'] - EH['solved']['Hx']).astype(np.float64) ** 2) +
+                                        np.sum((EH['basic']['Hy'] - EH['solved']['Hy']).astype(np.float64) ** 2) +
+                                        np.sum((EH['basic']['Hz'] - EH['solved']['Hz']).astype(np.float64) ** 2)
+                                    ) / (np.sum(EH['solved']['Hx'] ** 2) + np.sum(EH['solved']['Hy'] ** 2) + np.sum(EH['solved']['Hz'] ** 2))
                                 )
                         ).item()
                     )
@@ -599,15 +567,15 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                     np.sqrt(
                             (
                                 (
-                                    np.sum((Ext.raw(np.float64) - Exs) ** 2) +
-                                    np.sum((Eyt.raw(np.float64) - Eys) ** 2) +
-                                    np.sum((Ezt.raw(np.float64) - Ezs) ** 2)
-                                ) / (np.sum(Exs ** 2) + np.sum(Eys ** 2) + np.sum(Ezs ** 2)) + 
+                                    np.sum((EH['TT']['Ex'].raw(np.float64) - EH['solved']['Ex']) ** 2) +
+                                    np.sum((EH['TT']['Ey'].raw(np.float64) - EH['solved']['Ey']) ** 2) +
+                                    np.sum((EH['TT']['Ez'].raw(np.float64) - EH['solved']['Ez']) ** 2)
+                                ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2)) + 
                                 (
-                                    np.sum((Hxt.raw(np.float64) - Hxs) ** 2) +
-                                    np.sum((Hyt.raw(np.float64) - Hys) ** 2) +
-                                    np.sum((Hzt.raw(np.float64) - Hzs) ** 2)
-                                ) / (np.sum(Hxs ** 2) + np.sum(Hys ** 2) + np.sum(Hzs ** 2))
+                                    np.sum((EH['TT']['Hx'].raw(np.float64) - EH['solved']['Hx']) ** 2) +
+                                    np.sum((EH['TT']['Hy'].raw(np.float64) - EH['solved']['Hy']) ** 2) +
+                                    np.sum((EH['TT']['Hz'].raw(np.float64) - EH['solved']['Hz']) ** 2)
+                                ) / (np.sum(EH['solved']['Hx'] ** 2) + np.sum(EH['solved']['Hy'] ** 2) + np.sum(EH['solved']['Hz'] ** 2))
                             )
                         ).item()
                     )
@@ -617,15 +585,15 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                         np.sqrt(
                                 (
                                     (
-                                        np.sum((Exb.cpu().numpy() - Exs) ** 2) +
-                                        np.sum((Eyb.cpu().numpy() - Eys) ** 2) +
-                                        np.sum((Ezb.cpu().numpy() - Ezs) ** 2)
-                                    ) / (np.sum(Exs ** 2) + np.sum(Eys ** 2) + np.sum(Ezs ** 2)) + 
+                                        np.sum((EH['basic']['Ex'].cpu().numpy() - EH['solved']['Ex']) ** 2) +
+                                        np.sum((EH['basic']['Ey'].cpu().numpy() - EH['solved']['Ey']) ** 2) +
+                                        np.sum((EH['basic']['Ez'].cpu().numpy() - EH['solved']['Ez']) ** 2)
+                                    ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2)) + 
                                     (
-                                        np.sum((Hxb.cpu().numpy() - Hxs) ** 2) +
-                                        np.sum((Hyb.cpu().numpy() - Hys) ** 2) +
-                                        np.sum((Hzb.cpu().numpy() - Hzs) ** 2)
-                                    ) / (np.sum(Hxs ** 2) + np.sum(Hys ** 2) + np.sum(Hzs ** 2))
+                                        np.sum((EH['basic']['Hx'].cpu().numpy() - EH['solved']['Hx']) ** 2) +
+                                        np.sum((EH['basic']['Hy'].cpu().numpy() - EH['solved']['Hy']) ** 2) +
+                                        np.sum((EH['basic']['Hz'].cpu().numpy() - EH['solved']['Hz']) ** 2)
+                                    ) / (np.sum(EH['solved']['Hx'] ** 2) + np.sum(EH['solved']['Hy'] ** 2) + np.sum(EH['solved']['Hz'] ** 2))
                                 )
                         )
                     )
@@ -633,15 +601,15 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                     np.sqrt(
                             (
                                 (
-                                    np.sum((Ext.raw().cpu().numpy() - Exs) ** 2) +
-                                    np.sum((Eyt.raw().cpu().numpy() - Eys) ** 2) +
-                                    np.sum((Ezt.raw().cpu().numpy() - Ezs) ** 2)
-                                ) / (np.sum(Exs ** 2) + np.sum(Eys ** 2) + np.sum(Ezs ** 2)) + 
+                                    np.sum((EH['TT']['Ex'].raw(torch.float64).cpu().numpy() - EH['solved']['Ex']) ** 2) +
+                                    np.sum((EH['TT']['Ey'].raw(torch.float64).cpu().numpy() - EH['solved']['Ey']) ** 2) +
+                                    np.sum((EH['TT']['Ez'].raw(torch.float64).cpu().numpy() - EH['solved']['Ez']) ** 2)
+                                ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2)) + 
                                 (
-                                    np.sum((Hxt.raw().cpu().numpy() - Hxs) ** 2) +
-                                    np.sum((Hyt.raw().cpu().numpy() - Hys) ** 2) +
-                                    np.sum((Hzt.raw().cpu().numpy() - Hzs) ** 2)
-                                ) / (np.sum(Hxs ** 2) + np.sum(Hys ** 2) + np.sum(Hzs ** 2))
+                                    np.sum((EH['TT']['Hx'].raw(torch.float64).cpu().numpy() - EH['solved']['Hx']) ** 2) +
+                                    np.sum((EH['TT']['Hy'].raw(torch.float64).cpu().numpy() - EH['solved']['Hy']) ** 2) +
+                                    np.sum((EH['TT']['Hz'].raw(torch.float64).cpu().numpy() - EH['solved']['Hz']) ** 2)
+                                ) / (np.sum(EH['solved']['Hx'] ** 2) + np.sum(EH['solved']['Hy'] ** 2) + np.sum(EH['solved']['Hz'] ** 2))
                             )
                     )
                 )
@@ -650,7 +618,7 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                 info[f'{key}_times'].append(TT.times[key]) 
             if simulation_type == 2:
                 info['basic_times'].append(basic_time)
-                info['basic_sizes'].append(Exb.nbytes + Eyb.nbytes + Ezb.nbytes + Hxb.nbytes + Hyb.nbytes + Hzb.nbytes)            
+                info['basic_sizes'].append(sum([EH['basic'][d].nbytes for d in order]))            
             if source:
                 info['tt_sizes'].append(tt_size + P.nbytes())
             else:
@@ -663,8 +631,11 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                 json.dump(info, f)
             if not npy:
                 if simulation_type == 2:
-                    del Exb, Eyb, Ezb, Hxb, Hyb, Hzb
-                del Ext, Eyt, Ezt, Hxt, Hyt, Hzt, Exs, Eys, Ezs, Hxs, Hys, Hzs
+                    for d in order:
+                        del EH['basic'][d]
+                for d in order:
+                    del EH['TT'][d]
+                    del EH['solved'][d]
                 if source:
                     del P
                     if solution == 4:
@@ -672,4 +643,4 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
         if not npy:
             torch.cuda.empty_cache()
         print(f"{grid_size}: Finished solving", flush = True)
-        grid_size *= 2
+        grid_size += 1
