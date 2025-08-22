@@ -672,7 +672,7 @@ class torchTT():
                     else:
                         torchTT.times['norm'] += time.time()
                     return torch.linalg.norm(self[0]).item()
-                rank_split = len(A) + 123
+                rank_split = len(self) + 123
             A = self
             if dtype is None:
                 dtype = A[0].dtype
@@ -1029,7 +1029,7 @@ class torchTT():
             torchTT.times['round'] -= time.time()
         delta = [a.eps / np.sqrt(len(a) - 1) for a in A]
         dims = [a.dims() for a in A]
-        rmax = [np.prod(dims).item() for dim in dims]
+        rmax = [np.prod(dim).item() for dim in dims]
         B = []
         for a in A:
             if a.orthogonal:
