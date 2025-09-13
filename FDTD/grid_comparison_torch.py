@@ -7,7 +7,7 @@ from typing import Literal, Tuple, Union
 
 #IMPORTANT: While the code itself may not be written as optimally as possible, the algorithms are
 
-def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, sizes: Tuple[int], simulation_type: int, npy: bool, error: float = 0, caps: Union[list[list[int]], Literal['d']] = 'd', zero_thres: float = 0, m: int = 10, a: Tuple[int, int] = (-0.488, 0.145), device: Literal['cpu', 'cuda'] = 'cuda', save_type: int = 0, eps: float = 8.854e-12, mu: float = np.pi * 4e-7, ignore_error: bool = False):
+def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, sizes: Tuple[int], simulation_type: int, npy: bool, error: float = 0, caps: Union[list[list[int]], Literal['d']] = 'd', zero_thres: float = 0, tsubstep: int = 1, m: int = 10, a: Tuple[float, float] = (-0.488, 0.145), p: Tuple[int, int] = (5, 20), device: Literal['cpu', 'cuda'] = 'cuda', save_type: int = 0, eps: float = 8.854e-12, mu: float = np.pi * 4e-7, ignore_error: bool = False):
     """
     Full Test Run of FDTD, with assumed order of Ex, Ey, Ez, Hx, Hy, Hz.
 
@@ -19,9 +19,11 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
     :param npy: Whether to use numpy or torch
     :param error: error threshold for TT
     :param caps: Caps to use for each TT-tensor. Each solution has default optimal caps
+    :param tsubstep: Substeps to divide each timestep into; useful for higher temporal frequencies
     :param zero_thres: Relative threshold needed for zeroing-out tensor
     :param m: the m for solutions it is used in
     :param a: the a for solutions it is used in
+    :param p: the p for solutions it is used in
     :param device: what device to use if pytorch; cpu always used for numpy
     :param save_type: How to save results when simulation_type = 0; 0 = Nothing saved, 1 = End saved, 2 = All saved, 3 = All error saved
     :param eps: value for epsilon
@@ -108,6 +110,8 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
     elif boundary == "Periodic":
         if solution in [3, 4, 5]:
             ending += f'-{n}'
+        elif solution == 6:
+            ending += f'-{p}'
 
     if simulation_type == 0:
         print(f'Basic Simulation: {ending} with {"numpy" if npy else "torch"}', flush = True)
@@ -177,6 +181,23 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                                 for i in range(1, n + 1):
                                     s += np.sin(np.pi * i * y) * np.cos(np.pi * i * x) * np.sin(np.pi * np.sqrt(2) * c * t * i)
                                 return np.sqrt(eps / (2 * mu)).item() * s
+                        return s
+                elif solution == 6:
+                    def solved(x, y, z, t, d):
+                        s = np.zeros_like(x)
+                        match d:
+                            case 'Ex':
+                                pass
+                            case 'Ey':
+                                pass
+                            case 'Ez':
+                                pass
+                            case 'Hx':
+                                pass
+                            case 'Hy':
+                                pass
+                            case 'Hz':
+                                pass
                         return s
             elif boundary == "Periodic":
                 if solution == 1:
@@ -287,6 +308,23 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                                 for i in range(1, n + 1):
                                     s += np.cos(2 * np.pi * i * x) * np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.sin(np.pi * np.sqrt(12).item() * c * i * t)
                                 return np.sqrt(eps / mu * 3 / 4) * s
+                elif solution == 6:
+                    def solved(x, y, z, t, d):
+                        s = np.zeros_like(z)
+                        match d:
+                            case 'Ex':
+                                return sum([np.cos(2 * np.pi * np.cos(2 * np.pi * i * (x + y - z - np.sqrt(3) * c * t))) for i in range(1, n + 1)])
+                            case 'Ey':
+                                return -0.5 * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * i * (x + y - z - np.sqrt(3) * c * t))) for i in range(1, n + 1)])
+                            case 'Ez':
+                                return 0.5 * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * i * (x + y - z - np.sqrt(3) * c * t))) for i in range(1, n + 1)])
+                            case 'Hx':
+                                return np.zeros_like(x)
+                            case 'Hy':
+                                return -np.sqrt(3 * eps / mu).item() / 2  * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * i * (x + y - z - np.sqrt(3) * c * t))) for i in range(1, n + 1)])
+                            case 'Hz':
+                                return -np.sqrt(3 * eps / mu).item() / 2  * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * i * (x + y - z - np.sqrt(3) * c * t))) for i in range(1, n + 1)])
+                        return s
             for d in order:
                 EH['solver'][d] =lambda x,y,z,t: solved(x,y,z,t,d)
 
@@ -302,7 +340,7 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
             cell_size = 1 / (grid_size - 1)
         elif boundary == "Periodic":
             cell_size = 1 / grid_size
-        t = 1 / grid_size / c / np.sqrt(3).item() #Accounts for Courant limit
+        t = 1 / grid_size / c / np.sqrt(3).item() / tsubstep #Accounts for Courant limit
         #Reused constants
         eps1 = t / eps / cell_size
         mu1 = -t / mu / cell_size
@@ -357,7 +395,7 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
         if simulation_type == 0:
             if save_type in [2, 3]:
                 for d in order:
-                    EH['saved'][d] = torch.zeros((iters * grid_size + 1, *EH['basic'][d].shape), device = device, dtype = precision)
+                    EH['saved'][d] = torch.zeros((iters * grid_size * tsubstep + 1, *EH['basic'][d].shape), device = device, dtype = precision)
                     EH['saved'][d][0, :, :, :] = EH['basic'][d]
             if source and solution == 4:
                 if npy:
@@ -366,7 +404,8 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                     X = -np.pi * c * t * torch.tensor(np.array([np.outer(np.sin(j * np.pi * gu[::2][1:-1]), np.sin(j * np.pi * gu[::2][1:-1])) for j in range(1, n + 1)]), device = device, dtype = precision)
         else:
             for i, d in enumerate(order):
-                EH['TT'][d] = TT.TTarray(EH['basic'][d], error, caps[i])
+                if not npy:
+                    EH['TT'][d] = TT.TTarray(EH['basic'][d].clone(), error, caps[i])
             if simulation_type == 1:
                 if not npy:
                     for d in order:
@@ -393,9 +432,9 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
         if device == 'cuda':
             events = [torch.cuda.Event(enable_timing = True) for _ in range(4)] #Basic, TT
         #The actual simulation update loop
-        for i in range(grid_size * iters):
-            if i % iters == 0:
-                print(f'{round(i / iters)}/{grid_size}', flush = True)
+        for i in range(grid_size * iters * tsubstep):
+            if i % (iters * tsubstep) == 0:
+                print(f'{round(i / iters / tsubstep)}/{grid_size}', flush = True)
             if simulation_type in [0, 2]:
                 if device == 'cuda':
                     events[0].record()
@@ -417,9 +456,9 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                     EH['basic']['Ez'][1:-1, 1:-1, :] += eps1 * (EH['basic']['Hy'][1:, 1:-1, :] - EH['basic']['Hy'][:-1, 1:-1, :] - EH['basic']['Hx'][1:-1, 1:, :] + EH['basic']['Hx'][1:-1, :-1, :])
                     if source:
                         if solution == 3:
-                            if i < grid_size:
-                                T = (i + 1) * 2 * np.pi / grid_size
-                                x = (a[0] * np.sin(T) + a[1] * 2 * np.sin(2 * T) - (a[0] + 4 * a[1]) / 3 * np.sin(3 * T)) * grid_size * grid_size
+                            if i < grid_size * tsubstep:
+                                T = (i + 1) * 2 * np.pi / grid_size / tsubstep
+                                x = (a[0] * np.sin(T) + a[1] * 2 * np.sin(2 * T) - (a[0] + 4 * a[1]) / 3 * np.sin(3 * T)) * grid_size * grid_size / tsubstep
                                 EH['basic']['Ex'][grid_size // 2, grid_size // 2, grid_size // 2] += x
                         elif solution == 4:
                             x = sum([j * np.sin(2 * j * np.pi * c * t * (i + 0.5)) * X[j - 1, :, :] for j in range(1, n + 1)])
@@ -442,26 +481,26 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                     EH['TT']['Hy'] += mu1 * (EH['TT']['Ez'].rollsum([[-1, 0, -1]]) - EH['TT']['Ex'].rollsum([[-1, 2, -1]]))
                     EH['TT']['Hz'] += mu1 * (EH['TT']['Ex'].rollsum([[-1, 1, -1]]) - EH['TT']['Ey'].rollsum([[-1, 0, -1]]))
                     if not TT.roundInPlus:
-                        EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz'] = TT.group_round_zero((EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz']))
+                        EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz'] = TT.group_round((EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz']), error)
                     EH['TT']['Ex'] += eps1 * (EH['TT']['Hz'].rollsum([[1, 1, -1]]) - EH['TT']['Hy'].rollsum([[1, 2, -1]]))
                     EH['TT']['Ey'] += eps1 * (EH['TT']['Hx'].rollsum([[1, 2, -1]]) - EH['TT']['Hz'].rollsum([[1, 0, -1]]))
                     EH['TT']['Ez'] += eps1 * (EH['TT']['Hy'].rollsum([[1, 0, -1]]) - EH['TT']['Hx'].rollsum([[1, 1, -1]]))
                     if not TT.roundInPlus:
-                        EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez'] = TT.group_round_zero((EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez']))
+                        EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez'] = TT.group_round((EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez']), error)
                 elif boundary == "PEC":
                     EH['TT']['Hx'] += mu1 * (EH['TT']['Ez'].reducedSum(1, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Ey'].reducedSum(2, [(1, None), (0, -1)], [1, -1]))
                     EH['TT']['Hy'] += mu1 * (EH['TT']['Ex'].reducedSum(2, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Ez'].reducedSum(0, [(1, None), (0, -1)], [1, -1]))
                     EH['TT']['Hz'] += mu1 * (EH['TT']['Ey'].reducedSum(0, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Ex'].reducedSum(1, [(1, None), (0, -1)], [1, -1]))
                     if not TT.roundInPlus:
-                        EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz'] = TT.group_round_zero((EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz']))
+                        EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz'] = TT.group_round((EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz']))
                     EH['TT']['Ex'] += eps1 * (EH['TT']['Hz'].reduce([':', ':', (1, -1)]).reducedSum(1, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Hy'].reduce([':', (1, -1), ':']).reducedSum(2, [(1, None), (0, -1)], [1, -1])).pad([1, 2], [[2, 1], [2, 1]])
                     EH['TT']['Ey'] += eps1 * (EH['TT']['Hx'].reduce([(1, -1), ':', ':']).reducedSum(2, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Hz'].reduce([':', ':', (1, -1)]).reducedSum(0, [(1, None), (0, -1)], [1, -1])).pad([0, 2], [[2, 1], [2, 1]])
                     EH['TT']['Ez'] += eps1 * (EH['TT']['Hy'].reduce([':', (1, -1), ':']).reducedSum(0, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Hx'].reduce([(1, -1), ':', ':']).reducedSum(1, [(1, None), (0, -1)], [1, -1])).pad([0, 1], [[2, 1], [2, 1]])
                     if source:
                         if solution == 3:
-                            if i < grid_size:
+                            if i < grid_size * tsubstep:
                                 T = (i + 1) * 2 * np.pi / grid_size
-                                x = (a[0] * np.sin(T) + a[1] * 2 * np.sin(2 * T) - (a[0] + 4 * a[1]) / 3 * np.sin(3 * T)) * grid_size * grid_size
+                                x = (a[0] * np.sin(T) + a[1] * 2 * np.sin(2 * T) - (a[0] + 4 * a[1]) / 3 * np.sin(3 * T)) * grid_size * grid_size / tsubstep
                                 P[1][0, grid_size // 2, 0] = x
                                 EH['TT']['Ex'] += P
                         elif solution == 4:
@@ -473,7 +512,7 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                                 P[2][:, 1:-1, 0] = torch.tensor(np.array([j * np.sin(j * np.pi * gu[::2][1:-1]) for j in range(1, n + 1)]), device = device, dtype = precision)
                             EH['TT']['Ex'] += P
                     if not TT.roundInPlus:
-                        EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez'] = TT.group_round_zero((EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez']))
+                        EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez'] = TT.group_round((EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez']))
                 if device == 'cuda':
                     events[3].record()
                 else:           
@@ -494,15 +533,38 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                             TT.times[key] += TT.events[key][j].elapsed_time(TT.events[key][j + 1]) / 1000
                         TT.events[key] = []
         #After simulation; data fetching
+        if not ignore_error:
+            if not analytic:
+                for d in order:
+                    EH['solved'][d] = EH['solver'][d](np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'))
+            else:
+                for d in order:
+                    EH['solved'][d] = EH['solver'][d](*np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'), (iters * grid_size * tsubstep + yee[d][3]) * t)
         if simulation_type == 0:
-            print(basic_time, flush = True)
+            print(f'time: {basic_time}', flush = True)
             if save_type > 0:
                 os.makedirs(ending, exist_ok = True)
             if save_type == 3:
                 if analytic:
                     for d in order:
-                        EH['solved'][d] = EH['solver'][d](*np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), (np.arange(iters * grid_size + 1) + yee[d][3]) * t, indexing = 'ij')).transpose(3, 0, 1, 2)
+                        EH['solved'][d] = EH['solver'][d](*np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), (np.arange(iters * grid_size * tsubstep + 1) + yee[d][3]) * t, indexing = 'ij')).transpose(3, 0, 1, 2)
             if not npy:
+                error = np.sqrt(
+                            (
+                                (
+                                    np.sum((EH['basic']['Ex'].cpu().numpy() - EH['solved']['Ex']) ** 2) +
+                                    np.sum((EH['basic']['Ey'].cpu().numpy() - EH['solved']['Ey']) ** 2) +
+                                    np.sum((EH['basic']['Ez'].cpu().numpy() - EH['solved']['Ez']) ** 2)
+                                ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2)) + 
+                                (
+                                    np.sum((EH['basic']['Hx'].cpu().numpy() - EH['solved']['Hx']) ** 2) +
+                                    np.sum((EH['basic']['Hy'].cpu().numpy() - EH['solved']['Hy']) ** 2) +
+                                    np.sum((EH['basic']['Hz'].cpu().numpy() - EH['solved']['Hz']) ** 2)
+                                ) / (np.sum(EH['solved']['Hx'] ** 2) + np.sum(EH['solved']['Hy'] ** 2) + np.sum(EH['solved']['Hz'] ** 2))
+                            )
+                        )
+                if not ignore_error:
+                    print(f'error:{error}')
                 if save_type == 1:
                     for d in order:
                         np.save(os.path.join(ending, d), EH['basic'][d].cpu().numpy())
@@ -532,6 +594,21 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                 if source and solution == 4:
                     del X
             else:
+                if not ignore_error:
+                    print(np.sqrt(
+                                    (
+                                        (
+                                            np.sum((EH['basic']['Ex'] - EH['solved']['Ex']).astype(np.float64) ** 2) +
+                                            np.sum((EH['basic']['Ey'] - EH['solved']['Ey']).astype(np.float64) ** 2) +
+                                            np.sum((EH['basic']['Ez'] - EH['solved']['Ez']).astype(np.float64) ** 2)
+                                        ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2)) + 
+                                        (
+                                            np.sum((EH['basic']['Hx'] - EH['solved']['Hx']).astype(np.float64) ** 2) +
+                                            np.sum((EH['basic']['Hy'] - EH['solved']['Hy']).astype(np.float64) ** 2) +
+                                            np.sum((EH['basic']['Hz'] - EH['solved']['Hz']).astype(np.float64) ** 2)
+                                        ) / (np.sum(EH['solved']['Hx'] ** 2) + np.sum(EH['solved']['Hy'] ** 2) + np.sum(EH['solved']['Hz'] ** 2))
+                                    )
+                            ).item())
                 if save_type == 1:
                     for d in order:
                         np.save(os.path.join(ending, d), EH['basic'][d])
@@ -539,14 +616,6 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                     for d in order:
                         np.save(os.path.join(ending, d), EH['saved'][d])
         else:
-            if not ignore_error:
-                if not analytic:
-                    for d in order:
-                        EH['solved'][d] = EH['solver'][d](np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'))
-                else:
-                    for d in order:
-                        EH['solved'][d] = EH['solver'][d](*np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'), (iters * grid_size + yee[d][3]) * t)
-
             #Error calculations based on https://www.sciencedirect.com/science/article/pii/S0378475423001313, as seen in 5.1
             if npy:
                 if not ignore_error:
@@ -588,18 +657,18 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                     if simulation_type == 2:
                         info['basic_errors'].append(
                             np.sqrt(
+                                (
                                     (
-                                        (
-                                            np.sum((EH['basic']['Ex'].cpu().numpy() - EH['solved']['Ex']) ** 2) +
-                                            np.sum((EH['basic']['Ey'].cpu().numpy() - EH['solved']['Ey']) ** 2) +
-                                            np.sum((EH['basic']['Ez'].cpu().numpy() - EH['solved']['Ez']) ** 2)
-                                        ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2)) + 
-                                        (
-                                            np.sum((EH['basic']['Hx'].cpu().numpy() - EH['solved']['Hx']) ** 2) +
-                                            np.sum((EH['basic']['Hy'].cpu().numpy() - EH['solved']['Hy']) ** 2) +
-                                            np.sum((EH['basic']['Hz'].cpu().numpy() - EH['solved']['Hz']) ** 2)
-                                        ) / (np.sum(EH['solved']['Hx'] ** 2) + np.sum(EH['solved']['Hy'] ** 2) + np.sum(EH['solved']['Hz'] ** 2))
-                                    )
+                                        np.sum((EH['basic']['Ex'].cpu().numpy() - EH['solved']['Ex']) ** 2) +
+                                        np.sum((EH['basic']['Ey'].cpu().numpy() - EH['solved']['Ey']) ** 2) +
+                                        np.sum((EH['basic']['Ez'].cpu().numpy() - EH['solved']['Ez']) ** 2)
+                                    ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2)) + 
+                                    (
+                                        np.sum((EH['basic']['Hx'].cpu().numpy() - EH['solved']['Hx']) ** 2) +
+                                        np.sum((EH['basic']['Hy'].cpu().numpy() - EH['solved']['Hy']) ** 2) +
+                                        np.sum((EH['basic']['Hz'].cpu().numpy() - EH['solved']['Hz']) ** 2)
+                                    ) / (np.sum(EH['solved']['Hx'] ** 2) + np.sum(EH['solved']['Hy'] ** 2) + np.sum(EH['solved']['Hz'] ** 2))
+                                )
                             )
                         )
                     info['tt_errors'].append(
@@ -649,4 +718,4 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
         if not npy:
             torch.cuda.empty_cache()
         print(f"{grid_size}: Finished solving", flush = True)
-        grid_size += 1
+        grid_size *= 2

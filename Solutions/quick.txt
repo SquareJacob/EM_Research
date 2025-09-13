@@ -4,3 +4,4 @@
 #3          Point trig source           yz Analytic trig sum
 #4          Analytic trig sum source    xy Analytic trig sum
 #5          xy Analytic trig sum        xyz Analytic trig sum
+#6          xyz Analytic trig dsum      cyz Analytic trig dsum

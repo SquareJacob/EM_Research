@@ -834,6 +834,8 @@ class torchTT():
         """
         TT-rounding on TT tensor A to error resthold eps, with optional maximum output ranks given by caps.
         """
+        if eps >= 1:
+            return torchTT.zero_like(A)
         if torchTT.oldRound:
             return torchTT.round1(A, eps, caps)
         gpu = A[0].is_cuda
@@ -851,6 +853,7 @@ class torchTT():
         else:
             B = torchTT.orthogonalize(A, True)
         r1 = 1
+        delta = eps * torch.linalg.norm(B[0]).item() / np.sqrt(2).item()
         for i in range(len(A) - 1):
             if gpu:
                 e = torch.cuda.Event(enable_timing = True)
@@ -877,16 +880,9 @@ class torchTT():
             else:
                 torchTT.times['svd'] += time.time()
             #https://github.com/oseledets/TT-Toolbox/blob/master/core/my_chop2.m
-            s = torch.linalg.norm(S)
-            if s == 0:
-                r1 = 1
-            elif eps == 0:
-                r1 = len(S)
-            else:
-                ep = delta * s
-                C = torch.cumsum(S.square().flip(0), dim=0)
-                r1 = C.numel() - torch.searchsorted(C, ep * ep, right=False)
-                del C
+            C = torch.cumsum(S.square().flip(0), dim=0)
+            r1 = C.numel() - torch.searchsorted(C, delta * delta, right=False)
+            del C
             r1 = min(r1, rmax)
             if caps:
                 r1 =  min(r1, caps[i])
@@ -1019,92 +1015,12 @@ class torchTT():
         return torchTT.TTarray(B, A.eps, A.caps)
     
     @staticmethod
-    def group_round(A: list[TTarray]) -> TTarray:
-        gpu = A[0][0].is_cuda
-        if gpu:
-            e = torch.cuda.Event(enable_timing = True)
-            e.record()
-            torchTT.events['round'].append(e)
-        else:
-            torchTT.times['round'] -= time.time()
-        delta = [a.eps / np.sqrt(len(a) - 1) for a in A]
-        dims = [a.dims() for a in A]
-        rmax = [np.prod(dim).item() for dim in dims]
-        B = []
-        for a in A:
-            if a.orthogonal:
-                B.append(a.cores.copy())
-            else:
-                B.append(torchTT.orthogonalize(a, True))
-        r1 = [1 for i in range(len(A))]
-        R = [0 for i in range(len(A))]
-        U = [0 for i in range(len(A))]
-        S = [0 for i in range(len(A))]
-        V = [0 for i in range(len(A))]
-        zero = [False for i in range(len(A))]
-        for i in range(len(A[0]) - 1):
-            if gpu:
-                e = torch.cuda.Event(enable_timing = True)
-                e.record()
-                torchTT.events['qr'].append(e)
-            else:
-                torchTT.times['qr'] -= time.time()
-            for j in range(len(A)):
-                if not zero[j]:
-                    B[j][i], R[j] =  torch.linalg.qr(B[j][i].reshape(r1[j] * dims[j][i], -1), 'reduced')
-            if gpu:
-                e = torch.cuda.Event(enable_timing = True)
-                e.record()
-                torchTT.events['qr'].append(e)
-                e = torch.cuda.Event(enable_timing = True)
-                e.record()
-                torchTT.events['svd'].append(e)
-            else:
-                torchTT.times['qr'] += time.time()
-                torchTT.times['svd'] -= time.time()
-            for j in range(len(A)):
-                if not zero[j]:
-                    U[j], S[j], V[j] = torch.linalg.svd(R[j], full_matrices = False)
-            if gpu:
-                e = torch.cuda.Event(enable_timing = True)
-                e.record()
-                torchTT.events['svd'].append(e)
-            else:
-                torchTT.times['svd'] += time.time()
-            s = max([torch.linalg.norm(sj).item() for sj in S])
-            if s == 0:
-                r1 = [1 for _ in range(len(A))]
-            else:
-                for j in range(len(A)):
-                    if zero[j]:
-                        continue
-                    if A[j].eps == 0:
-                        r1[j] = len(S[j])
-                    else:
-                        ep = delta[j] * s
-                        C = torch.cumsum(S[j].square().flip(0), dim=0)
-                        r1[j] = C.numel() - torch.searchsorted(C, ep * ep, right=False)
-                        del C
-                    r1[j] = min(r1[j], rmax[j])
-                    if r1[j] == 0:
-                        S[j] = torch.zeros((1))
-                        zero[j] = True
-                        B[j] = torchTT.zero_like(A[j]).cores
-            for j in range(len(A)):
-                if zero[j]:
-                    continue
-                B[j][i] = (B[j][i] @ U[j][:, :r1[j]]).reshape(-1, dims[j][i], r1[j])
-                B[j][i + 1] = (S[j][:r1[j], None] * V[j][:r1[j], :]) @ B[j][i + 1].reshape(V[j].shape[1], -1)
-        for j in range(len(A)):
-            if not zero[j]:
-                B[j][-1] = B[j][-1].reshape(-1, dims[j][-1], 1)
-        if gpu:
-            e = torch.cuda.Event(enable_timing = True)
-            e.record()
-            torchTT.events['round'].append(e)
-        else:
-            torchTT.times['round'] += time.time()
-        return [torchTT.TTarray(B[j], A[j].eps, A[j].caps) for j in range(len(A))]
+    def group_round(A: list[TTarray], eps: float) -> list[TTarray]:
+        norms = [a.norm(orthogonal = True) for a in A]
+        norms = [0 if np.isnan(norm) else norm for norm in norms]
+        eps1 = eps * max(norms)
+        return [torchTT.round(A[i], eps1 / norms[i], A[i].caps) for i in range(len(norms))]
+        
 
     @staticmethod
     def group_round_zero(A: list[TTarray], thres: float = None) -> list[TTarray]:
@@ -1118,7 +1034,7 @@ class torchTT():
             inr = [] #what to round
             indr = [] #the indices of what is rounded
             for i in range(len(norms)):
-                if norms[i] > rthres:
+                if norms[i] >= rthres:
                     inr.append(A[i])
                     indr.append(i)
                 else:
