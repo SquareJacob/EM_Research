@@ -1015,11 +1015,12 @@ class torchTT():
         return torchTT.TTarray(B, A.eps, A.caps)
     
     @staticmethod
-    def group_round(A: list[TTarray], eps: float) -> list[TTarray]:
+    def group_round(A: list[TTarray], eps: float, delta: float = 0) -> list[TTarray]:
         norms = [a.norm(orthogonal = True) for a in A]
         norms = [0 if np.isnan(norm) else norm for norm in norms]
         eps1 = eps * max(norms)
-        return [torchTT.round(A[i], eps1 / norms[i], A[i].caps) for i in range(len(norms))]
+        delta1 = delta * max(norms)
+        return [torchTT.round(A[i], eps1 / norms[i], A[i].caps) if norms[i] > delta1 else torchTT.zero_like(A[i]) for i in range(len(norms))]
         
 
     @staticmethod

@@ -313,17 +313,17 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                         s = np.zeros_like(z)
                         match d:
                             case 'Ex':
-                                return sum([np.cos(2 * np.pi * np.cos(2 * np.pi * i * (x + y - z - np.sqrt(3) * c * t))) for i in range(1, n + 1)])
+                                return sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
                             case 'Ey':
-                                return -0.5 * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * i * (x + y - z - np.sqrt(3) * c * t))) for i in range(1, n + 1)])
+                                return -0.5 * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
                             case 'Ez':
-                                return 0.5 * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * i * (x + y - z - np.sqrt(3) * c * t))) for i in range(1, n + 1)])
+                                return 0.5 * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
                             case 'Hx':
                                 return np.zeros_like(x)
                             case 'Hy':
-                                return -np.sqrt(3 * eps / mu).item() / 2  * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * i * (x + y - z - np.sqrt(3) * c * t))) for i in range(1, n + 1)])
+                                return -np.sqrt(3 * eps / mu).item() / 2  * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
                             case 'Hz':
-                                return -np.sqrt(3 * eps / mu).item() / 2  * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * i * (x + y - z - np.sqrt(3) * c * t))) for i in range(1, n + 1)])
+                                return -np.sqrt(3 * eps / mu).item() / 2  * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
                         return s
             for d in order:
                 EH['solver'][d] =lambda x,y,z,t: solved(x,y,z,t,d)
@@ -492,7 +492,7 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                     EH['TT']['Hy'] += mu1 * (EH['TT']['Ex'].reducedSum(2, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Ez'].reducedSum(0, [(1, None), (0, -1)], [1, -1]))
                     EH['TT']['Hz'] += mu1 * (EH['TT']['Ey'].reducedSum(0, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Ex'].reducedSum(1, [(1, None), (0, -1)], [1, -1]))
                     if not TT.roundInPlus:
-                        EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz'] = TT.group_round((EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz']))
+                        EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz'] = TT.group_round((EH['TT']['Hx'], EH['TT']['Hy'], EH['TT']['Hz']), error, zero_thres)
                     EH['TT']['Ex'] += eps1 * (EH['TT']['Hz'].reduce([':', ':', (1, -1)]).reducedSum(1, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Hy'].reduce([':', (1, -1), ':']).reducedSum(2, [(1, None), (0, -1)], [1, -1])).pad([1, 2], [[2, 1], [2, 1]])
                     EH['TT']['Ey'] += eps1 * (EH['TT']['Hx'].reduce([(1, -1), ':', ':']).reducedSum(2, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Hz'].reduce([':', ':', (1, -1)]).reducedSum(0, [(1, None), (0, -1)], [1, -1])).pad([0, 2], [[2, 1], [2, 1]])
                     EH['TT']['Ez'] += eps1 * (EH['TT']['Hy'].reduce([':', (1, -1), ':']).reducedSum(0, [(1, None), (0, -1)], [1, -1]) - EH['TT']['Hx'].reduce([(1, -1), ':', ':']).reducedSum(1, [(1, None), (0, -1)], [1, -1])).pad([0, 1], [[2, 1], [2, 1]])
@@ -512,7 +512,7 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                                 P[2][:, 1:-1, 0] = torch.tensor(np.array([j * np.sin(j * np.pi * gu[::2][1:-1]) for j in range(1, n + 1)]), device = device, dtype = precision)
                             EH['TT']['Ex'] += P
                     if not TT.roundInPlus:
-                        EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez'] = TT.group_round((EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez']))
+                        EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez'] = TT.group_round((EH['TT']['Ex'], EH['TT']['Ey'], EH['TT']['Ez']), error, zero_thres)
                 if device == 'cuda':
                     events[3].record()
                 else:           
