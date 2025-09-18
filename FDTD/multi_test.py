@@ -77,7 +77,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         if not analytic: #Approximate non-analytic solutions using pre-solved solution using interpolation
             if not ignore_error:
                 if boundary == 'PEC':
-                    su = np.linspace(0, 1, 2 * solver_size - 1, dtype = precision if npy else pre2)
+                    su = np.linspace(0, 1, 2 * solver_size + 1, dtype = precision if npy else pre2)
                 elif boundary == 'Periodic':
                     su = np.linspace(1 / solver_size / 2, 1, 2 * solver_size, dtype = precision if npy else pre2)
                 from scipy.interpolate import RegularGridInterpolator
