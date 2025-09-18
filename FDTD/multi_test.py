@@ -337,7 +337,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 if solution == 2:
                     EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
                     EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
-                    EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (X[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (Y[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (Z[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
+                    EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (X[1::2, ::2, 1::2] + c * t / 2)) * np.cos(np.pi * i * (Y[1::2, ::2, 1::2] * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (Z[1::2, ::2, 1::2] * c * t / 2)) for i in range(1, max(p) + 1)])
                     EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (X[::2, 1::2, ::2])) * np.cos(np.pi * i * (Y[::2, 1::2, ::2])) * np.cos(np.pi * min(i, p[1]) * (Z[::2, 1::2, ::2])) for i in range(1, max(p) + 1)])
                     if not npy:
                         EH['solving']['Hy'] = torch.tensor(EH['solving']['Hy'], device = device, dtype = precision)
