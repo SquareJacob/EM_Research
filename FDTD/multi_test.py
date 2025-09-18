@@ -282,7 +282,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
     while grid_size <= end_size or solver:
         #All solutions on [0, 1]^3
         if boundary == "PEC":
-            cell_size = 1 / (grid_size - 1)
+            cell_size = 1 / (grid_size)
         elif boundary == "Periodic":
             cell_size = 1 / grid_size
         t = 1 / grid_size / c / np.sqrt(3).item() #Accounts for Courant limit
@@ -297,8 +297,8 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     info[key].append([])
 
         if boundary == "PEC":
-            gu = np.linspace(0, 1, 2 * grid_size - 1, dtype = precision if npy else pre2)
-            x = np.linspace(0, 1, grid_size * 2 - 1, dtype = precision if npy else pre2)
+            gu = np.linspace(0, 1, 2 * grid_size + 1, dtype = precision if npy else pre2)
+            x = np.linspace(0, 1, grid_size * 2 + 1, dtype = precision if npy else pre2)
         elif boundary == "Periodic":
             gu = np.linspace(1 / grid_size / 2, 1, 2 * grid_size, dtype = precision if npy else pre2)
             x = np.linspace(1 / grid_size / 2, 1, grid_size * 2, dtype = precision if npy else pre2)
@@ -335,6 +335,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         EH['solving'][d] = torch.tensor(EH['solver'][d](X[ixer[d]].cpu().numpy(), Y[ixer[d]].cpu().numpy(), Z[ixer[d]].cpu().numpy(), yee[d][3] * t), device = device, dtype = precision)
             elif boundary == "PEC":
                 if solution == 2:
+                    grid_size += 1
                     EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
                     EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
                     EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (X[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (Y[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (Z[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
@@ -344,6 +345,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         EH['solving']['Ey'] = torch.tensor(EH['solving']['Ey'], device = device, dtype = precision)
                     EH['solving']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
                     EH['solving']['Hx'] = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
+                    grid_size -= 1
                 elif solution == 3:
                     EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
                     EH['solving']['Hy'] = torch.zeros((grid_size - 1, grid_size, grid_size - 1), device = device, dtype = precision)
