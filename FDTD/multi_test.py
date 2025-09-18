@@ -71,7 +71,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         elif solution == 6:
             ending += f'-{p}'
     if not analytic and not os.path.isdir(ending) and not solver and not ignore_error:
-        full_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True)
+        multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True)
     if not solver:
         print(f'Simulation for: {ending} with {"numpy" if npy else "torch"}', flush = True)
         if not analytic: #Approximate non-analytic solutions using pre-solved solution using interpolation
