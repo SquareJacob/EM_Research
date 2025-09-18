@@ -4,6 +4,7 @@
 !FDTD
 FDTD/*
 !FDTD/grid_comparison_torch.py
+!FDTD/multi_test.py
 !FDTD/solver.py
 !.gitignore
 !Solutions

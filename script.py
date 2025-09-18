@@ -1,2 +1,3 @@
 from FDTD.grid_comparison_torch import full_test
-full_test('PEC', 3, 4, [256, 256], 2, False, 1e-4, zero_thres = 0, tsubstep = 1, save_type = 0, caps = None, ignore_error = False, p = [6, 2])
+from FDTD.multi_test import multi_test
+full_test('PEC', 2, 4, [128, 128, 512], False, [{'error': 1e-4, 'zero': 0, 'type': 1}, {'error': 1e-4, 'zero': 0, 'type': 1}, {'error': 1e-4, 'zero':1e-4, 'type': 1}, {'error': 1e-4, 'zero':1e-3, 'type': 1}], [0, 15], ignore_error = False)
