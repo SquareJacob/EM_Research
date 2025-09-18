@@ -298,10 +298,10 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
 
         if boundary == "PEC":
             gu = np.linspace(0, 1, 2 * grid_size - 1, dtype = precision if npy else pre2)
-            x = torch.linspace(0, 1, grid_size * 2 - 1, dtype = precision, device = device)
+            x = np.linspace(0, 1, grid_size * 2 - 1, dtype = precision if npy else pre2)
         elif boundary == "Periodic":
             gu = np.linspace(1 / grid_size / 2, 1, 2 * grid_size, dtype = precision if npy else pre2)
-            x = torch.linspace(1 / grid_size / 2, 1, grid_size * 2, dtype = precision, device = device)
+            x = np.linspace(1 / grid_size / 2, 1, grid_size * 2, dtype = precision if npy else pre2)
         for sim in simulations:
             if not solver:
                 simulation_type = sim['type']
@@ -323,7 +323,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 print(f'Solver for {ending} with {"numpy" if npy else "torch"}', flush = True)
                 simulation_type = 0
                    
-            X, Y, Z = torch.meshgrid(x, x, x, indexing = 'ij')
+            X, Y, Z = np.meshgrid(x, x, x, indexing = 'ij')
         
             #Create Tensors; Assume appropirate yee cell for both H at each half integer timestep and E at each integer timestep
             if analytic:
@@ -337,8 +337,11 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 if solution == 2:
                     EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
                     EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
-                    EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * torch.cos(np.pi * min(i, p[0]) * (X[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) * torch.cos(np.pi * i * (Y[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) * torch.cos(np.pi * min(i, p[1]) * (Z[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
-                    EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * torch.cos(np.pi * min(i, p[0]) * (X[::2, 1::2, ::2])) * torch.cos(np.pi * i * (Y[::2, 1::2, ::2])) * torch.cos(np.pi * min(i, p[1]) * (Z[::2, 1::2, ::2])) for i in range(1, max(p) + 1)])
+                    EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (X[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (Y[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (Z[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
+                    EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (X[::2, 1::2, ::2])) * np.cos(np.pi * i * (Y[::2, 1::2, ::2])) * np.cos(np.pi * min(i, p[1]) * (Z[::2, 1::2, ::2])) for i in range(1, max(p) + 1)])
+                    if not npy:
+                        EH['solving']['Hy'] = torch.tensor(EH['solving']['Hy'], device = device, dtype = precision)
+                        EH['solving']['Ey'] = torch.tensor(EH['solving']['Ey'], device = device, dtype = precision)
                     EH['solving']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
                     EH['solving']['Hx'] = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
                 elif solution == 3:
