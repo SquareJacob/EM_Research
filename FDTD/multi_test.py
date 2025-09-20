@@ -370,19 +370,19 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                             hy = (ez * fx - fz) / (ft * mu)
                             hz = (fy - ey * fx) / (ft * mu)
                             coefs.append([fx,fy,fz,ft,ey,ez,hx,hy,hz])
-                            match d:
-                                case 'Ex':
-                                    return sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
-                                case 'Ey':
-                                    return sum([coefs[i - 1][4] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
-                                case 'Ez':
-                                    return sum([coefs[i - 1][5] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
-                                case 'Hx':
-                                    return sum([coefs[i - 1][6] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
-                                case 'Hy':
-                                    return sum([coefs[i - 1][7] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
-                                case 'Hz':
-                                    return sum([coefs[i - 1][8] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                        match d:
+                            case 'Ex':
+                                return sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                            case 'Ey':
+                                return sum([coefs[i - 1][4] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                            case 'Ez':
+                                return sum([coefs[i - 1][5] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                            case 'Hx':
+                                return sum([coefs[i - 1][6] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                            case 'Hy':
+                                return sum([coefs[i - 1][7] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                            case 'Hz':
+                                return sum([coefs[i - 1][8] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
                     for d in order:
                         EH['solving'][d] = solved(X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t, d)
                         if not npy:
