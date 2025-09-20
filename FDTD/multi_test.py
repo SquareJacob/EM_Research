@@ -527,7 +527,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             if not npy:
                 torch.cuda.empty_cache()
         grid_size *= 2
+        with open(f"{ending}.json", "w") as f:
+            json.dump(info, f)
         if solver:
             break
-    with open(f"{ending}.json", "w") as f:
-        json.dump(info, f)
