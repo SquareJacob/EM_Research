@@ -35,7 +35,7 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
     c = 1/np.sqrt(mu * eps).item()
     grid_size = sizes[0]
     order = 'Ex,Ey,Ez,Hx,Hy,Hz'.split(',') #Ordering for operations done on everything
-    yee = { #Yee grid and inital times
+    yee = { #Yee grid and initial times
         'Ex': (1, 0, 0, 0),
         'Ey': (0, 1, 0, 0),
         'Ez': (0, 0, 1, 0),
@@ -318,32 +318,16 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
                         dx = 1 / g
                         dt = 1 / g / c / np.sqrt(3).item()
                         S = c * dt / dx
-                        temp = [
-                            [3, 3, 5] for i in range(max(p))
-                        ]
-                        for i in temp:
-                            fx = i[0]
-                            fy = i[1]
-                            fz = i[2]
-                            k = 2*np.pi*np.array([fx, fy, fz], dtype=float)
-                            s = np.sin(0.5*k*dx)
-                            rhs = S*np.linalg.norm(s)
-                            rhs = np.clip(rhs, 0.0, 1.0)
-                            omega = (2.0/dt)*np.arcsin(rhs)
-                            ft = -omega / (2*np.pi)
-                            #ft = -np.sqrt(fx ** 2 + fy ** 2 + fz ** 2) * c
-                            ktilde = (2.0/dx)*s 
-                            Omega  = (2.0/dt)*np.sin(0.5*omega*dt)
-                            E0 = np.cross(ktilde, np.array([0.0, 0.0, 1.0]))
-                            E0 = E0 / np.linalg.norm(E0)
-                            H0 = -(1.0/(mu*Omega))*np.cross(ktilde, E0)
-                            #ey = -fx * np.sqrt(fy) / 2
-                            #ez = (np.sqrt(fy) * fy - 2) * fx / (2 * fz)
-                            ey, ez = E0[1], E0[2]
-                            #hx = (ey * fz - ez * fy) / (ft * mu)
-                            #hy = (ez * fx - fz) / (ft * mu)
-                            #hz = (fy - ey * fx) / (ft * mu)
-                            hx, hy, hz = H0
+                        for i in range(1, max(p) + 1):
+                            fx = min(i, p[0])
+                            fy = i
+                            fz = min(i, p[1])
+                            ft = -np.sqrt(fx ** 2 + fy ** 2 + fz ** 2) * c
+                            ey = -fx * np.sqrt(fy) / 2
+                            ez = (np.sqrt(fy) * fy - 2) * fx / (2 * fz)
+                            hx = (ey * fz - ez * fy) / (ft * mu)
+                            hy = (ez * fx - fz) / (ft * mu)
+                            hz = (fy - ey * fx) / (ft * mu)
                             coefs.append([fx,fy,fz,ft,ey,ez,hx,hy,hz])
                         match d:
                             case 'Ex':
@@ -386,7 +370,7 @@ def full_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, s
             x = torch.linspace(1 / grid_size / 2, 1, grid_size * 2, dtype = precision, device = device)
         X, Y, Z = torch.meshgrid(x, x, x, indexing = 'ij')
         
-        #Create Tensors; Assume appropirate yee cell for both H at each half integer timestep and E at each integer timestep
+        #Create Tensors; Assume appropriate yee cell for both H at each half integer timestep and E at each integer timestep
         if analytic:
             if npy:
                 for d in order:

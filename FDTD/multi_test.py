@@ -24,7 +24,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
     a = param
     p = param
     order = 'Ex,Ey,Ez,Hx,Hy,Hz'.split(',') #Ordering for operations done on everything
-    yee = { #Yee grid and inital times
+    yee = { #Yee grid and initial times
         'Ex': (1, 0, 0, 0),
         'Ey': (0, 1, 0, 0),
         'Ez': (0, 0, 1, 0),
@@ -69,7 +69,8 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         if solution in [3, 4, 5]:
             ending += f'-{n}'
         elif solution == 6:
-            ending += f'-{p}'
+            analytic = False
+            ending += f'-{solver_size}-{p}'
     if not analytic and not os.path.isdir(ending) and not solver and not ignore_error:
         multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True)
     if not solver:
@@ -302,6 +303,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         elif boundary == "Periodic":
             gu = np.linspace(1 / grid_size / 2, 1, 2 * grid_size, dtype = precision if npy else pre2)
             x = np.linspace(1 / grid_size / 2, 1, grid_size * 2, dtype = precision if npy else pre2)
+        
         for sim in simulations:
             if not solver:
                 simulation_type = sim['type']
@@ -325,14 +327,14 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                    
             X, Y, Z = np.meshgrid(x, x, x, indexing = 'ij')
         
-            #Create Tensors; Assume appropirate yee cell for both H at each half integer timestep and E at each integer timestep
+            #Create Tensors; Assume appropriate yee cell for both H at each half integer timestep and E at each integer timestep
             if analytic:
                 if npy:
                     for d in order:
                         EH['solving'][d] = EH['solver'][d](X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t)
                 else:
                     for d in order:
-                        EH['solving'][d] = torch.tensor(EH['solver'][d](X[ixer[d]].cpu().numpy(), Y[ixer[d]].cpu().numpy(), Z[ixer[d]].cpu().numpy(), yee[d][3] * t), device = device, dtype = precision)
+                        EH['solving'][d] = torch.tensor(EH['solver'][d](X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t, grid_size), device = device, dtype = precision)
             elif boundary == "PEC":
                 if solution == 2:
                     grid_size += 1
@@ -353,6 +355,38 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     EH['solving']['Ey'] = torch.zeros((grid_size, grid_size - 1, grid_size), device = device, dtype = precision)
                     EH['solving']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
                     EH['solving']['Hx'] = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
+            elif boundary == "Periodic":
+                if solution == 6:
+                    def solved(x, y, z, t, d):
+                        coefs = [] # fx,fy,fz,ft,ey,ez,hx,hy,hz
+                        for i in range(1, max(p) + 1):
+                            fx = min(i, p[0])
+                            fy = i
+                            fz = min(i, p[1])
+                            ft = -np.sqrt(fx ** 2 + fy ** 2 + fz ** 2) * c
+                            ey = -fx * np.sqrt(fy) / 2
+                            ez = (np.sqrt(fy) * fy - 2) * fx / (2 * fz)
+                            hx = (ey * fz - ez * fy) / (ft * mu)
+                            hy = (ez * fx - fz) / (ft * mu)
+                            hz = (fy - ey * fx) / (ft * mu)
+                            coefs.append([fx,fy,fz,ft,ey,ez,hx,hy,hz])
+                            match d:
+                                case 'Ex':
+                                    return sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                                case 'Ey':
+                                    return sum([coefs[i - 1][4] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                                case 'Ez':
+                                    return sum([coefs[i - 1][5] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                                case 'Hx':
+                                    return sum([coefs[i - 1][6] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                                case 'Hy':
+                                    return sum([coefs[i - 1][7] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                                case 'Hz':
+                                    return sum([coefs[i - 1][8] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                    for d in order:
+                        EH['solving'][d] = solved(X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t, d)
+                        if not npy:
+                            EH['solving'][d] = torch.tensor(EH['solving'][d], device = device, dtype = precision)
             if boundary == "PEC":
                 EH['solving']['Ex'][:, :, 0] = 0
                 EH['solving']['Ex'][:, :, -1] = 0
@@ -485,7 +519,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         EH['solved'][d] = EH['solver'][d](np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'))
             else:
                 for d in order:
-                    EH['solved'][d] = EH['solver'][d](*np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'), (iters * grid_size + yee[d][3]) * t)
+                    EH['solved'][d] = EH['solver'][d](*np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'), (iters * grid_size + yee[d][3]) * t, grid_size)
             info['times'][-1].append(timing)
             info['rank1'][-1].append([])
             info['rank2'][-1].append([])
