@@ -69,8 +69,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         if solution in [3, 4, 5]:
             ending += f'-{n}'
         elif solution == 6:
-            analytic = False
-            ending += f'-{solver_size}-{p}'
+            ending += f'-{p}'
     if not analytic and not os.path.isdir(ending) and not solver and not ignore_error:
         multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True)
     if not solver:
@@ -355,38 +354,6 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     EH['solving']['Ey'] = torch.zeros((grid_size, grid_size - 1, grid_size), device = device, dtype = precision)
                     EH['solving']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
                     EH['solving']['Hx'] = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
-            elif boundary == "Periodic":
-                if solution == 6:
-                    def solved(x, y, z, t, d):
-                        coefs = [] # fx,fy,fz,ft,ey,ez,hx,hy,hz
-                        for i in range(1, max(p) + 1):
-                            fx = min(i, p[0])
-                            fy = i
-                            fz = min(i, p[1])
-                            ft = -np.sqrt(fx ** 2 + fy ** 2 + fz ** 2) * c
-                            ey = -fx * np.sqrt(fy) / 2
-                            ez = (np.sqrt(fy) * fy - 2) * fx / (2 * fz)
-                            hx = (ey * fz - ez * fy) / (ft * mu)
-                            hy = (ez * fx - fz) / (ft * mu)
-                            hz = (fy - ey * fx) / (ft * mu)
-                            coefs.append([fx,fy,fz,ft,ey,ez,hx,hy,hz])
-                        match d:
-                            case 'Ex':
-                                return sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
-                            case 'Ey':
-                                return sum([coefs[i - 1][4] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
-                            case 'Ez':
-                                return sum([coefs[i - 1][5] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
-                            case 'Hx':
-                                return sum([coefs[i - 1][6] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
-                            case 'Hy':
-                                return sum([coefs[i - 1][7] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
-                            case 'Hz':
-                                return sum([coefs[i - 1][8] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
-                    for d in order:
-                        EH['solving'][d] = solved(X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t, d)
-                        if not npy:
-                            EH['solving'][d] = torch.tensor(EH['solving'][d], device = device, dtype = precision)
             if boundary == "PEC":
                 EH['solving']['Ex'][:, :, 0] = 0
                 EH['solving']['Ex'][:, :, -1] = 0
