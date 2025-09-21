@@ -69,6 +69,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         if solution in [3, 4, 5]:
             ending += f'-{n}'
         elif solution == 6:
+            analytic = False
             ending += f'-{p}'
     if not analytic and not os.path.isdir(ending) and not solver and not ignore_error:
         multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True)
@@ -354,6 +355,28 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     EH['solving']['Ey'] = torch.zeros((grid_size, grid_size - 1, grid_size), device = device, dtype = precision)
                     EH['solving']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
                     EH['solving']['Hx'] = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
+            elif boundary == "Periodic":
+                if solution == 6:
+                    def solved(x, y, z, t, d, g):
+                        s = np.zeros_like(z)
+                        match d:
+                            case 'Ex':
+                                return sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
+                            case 'Ey':
+                                return -0.5 * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
+                            case 'Ez':
+                                return 0.5 * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
+                            case 'Hx':
+                                return np.zeros_like(x)
+                            case 'Hy':
+                                return -np.sqrt(3 * eps / mu).item() / 2  * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
+                            case 'Hz':
+                                return -np.sqrt(3 * eps / mu).item() / 2  * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
+                        return s
+                    for d in order:
+                        EH['solving'][d] = solved(X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t, d, grid_size)
+                        if not npy:
+                            EH['solving'][d] = torch.tensor(EH['solving'][d], device = device, dtype = precision)
             if boundary == "PEC":
                 EH['solving']['Ex'][:, :, 0] = 0
                 EH['solving']['Ex'][:, :, -1] = 0
@@ -515,15 +538,30 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                                 np.sum((EH['solving']['Ex'] - EH['solved']['Ex']) ** 2) +
                                 np.sum((EH['solving']['Ey'] - EH['solved']['Ey']) ** 2) +
                                 np.sum((EH['solving']['Ez'] - EH['solved']['Ez']) ** 2)
-                            ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2)) + 
-                            (
-                                np.sum((EH['solving']['Hx'] - EH['solved']['Hx']) ** 2) +
-                                np.sum((EH['solving']['Hy'] - EH['solved']['Hy']) ** 2) +
-                                np.sum((EH['solving']['Hz'] - EH['solved']['Hz']) ** 2)
-                            ) / (np.sum(EH['solved']['Hx'] ** 2) + np.sum(EH['solved']['Hy'] ** 2) + np.sum(EH['solved']['Hz'] ** 2))
+                            ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2))
                         )
                     )
                 )
+                if False:
+                    for d in order:
+                        EH['solved'][d] = solved(*np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'), (iters * grid_size + yee[d][3]) * t, d, grid_size)
+                        EH['solved'][d] = solved(*np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'), (iters * grid_size + yee[d][3] + 0) * t, d, grid_size)
+                    print(
+                    np.sqrt(
+                            (
+                                (
+                                    np.sum((EH['solving']['Ex'] - EH['solved']['Ex']) ** 2) +
+                                    np.sum((EH['solving']['Ey'] - EH['solved']['Ey']) ** 2) +
+                                    np.sum((EH['solving']['Ez'] - EH['solved']['Ez']) ** 2)
+                                ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2)) + 
+                                (
+                                    np.sum((EH['solving']['Hx'] - EH['solved']['Hx']) ** 2) +
+                                    np.sum((EH['solving']['Hy'] - EH['solved']['Hy']) ** 2) +
+                                    np.sum((EH['solving']['Hz'] - EH['solved']['Hz']) ** 2)
+                                ) / (np.sum(EH['solved']['Hx'] ** 2) + np.sum(EH['solved']['Hy'] ** 2) + np.sum(EH['solved']['Hz'] ** 2))
+                            )
+                        ) 
+                    )
             if not npy:
                 torch.cuda.empty_cache()
         grid_size *= 2
@@ -531,3 +569,4 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             json.dump(info, f)
         if solver:
             break
+        
