@@ -69,6 +69,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         if solution in [3, 4, 5]:
             ending += f'-{n}'
         elif solution == 6:
+            analytic = False
             ending += f'-{p}'
     if not analytic and not os.path.isdir(ending) and not solver and not ignore_error:
         multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True)
@@ -82,7 +83,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     su = np.linspace(1 / solver_size / 2, 1, 2 * solver_size, dtype = precision if npy else pre2)
                 from scipy.interpolate import RegularGridInterpolator
                 for d in order:
-                    EH['solver'][d] = RegularGridInterpolator(tuple(su[ixer[d][i]] for i in range(3)), np.load(os.path.join(ending, f'{d}.npy')))
+                    EH['solver'][d] = RegularGridInterpolator(tuple(su[ixer[d][i]] for i in range(3)), np.load(os.path.join(ending, f'{d}.npy')), method = "linear")
         else: #Otherwise, setup analytic solution
             if boundary == "PEC": 
                 if solution == 1:
@@ -261,21 +262,31 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                                 return np.sqrt(eps / mu * 3 / 4) * s
                 elif solution == 6:
                     def solved(x, y, z, t, d, g):
-                        s = np.zeros_like(z)
+                        coefs = [] # fx,fy,fz,ft,ey,ez,hx,hy,hz
+                        for i in range(1, max(p) + 1):
+                            fx = min(i, p[0])
+                            fy = i
+                            fz = min(i, p[1])
+                            ft = -np.sqrt(fx ** 2 + fy ** 2 + fz ** 2) * c
+                            ey = -fx * np.sqrt(fy) / 2
+                            ez = (np.sqrt(fy) * fy - 2) * fx / (2 * fz)
+                            hx = (ey * fz - ez * fy) / (ft * mu)
+                            hy = (ez * fx - fz) / (ft * mu)
+                            hz = (fy - ey * fx) / (ft * mu)
+                            coefs.append([fx,fy,fz,ft,ey,ez,hx,hy,hz])
                         match d:
                             case 'Ex':
-                                return sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
+                                return sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
                             case 'Ey':
-                                return -0.5 * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
+                                return sum([coefs[i - 1][4] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
                             case 'Ez':
-                                return 0.5 * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
+                                return sum([coefs[i - 1][5] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
                             case 'Hx':
-                                return np.zeros_like(x)
+                                return sum([coefs[i - 1][6] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
                             case 'Hy':
-                                return -np.sqrt(3 * eps / mu).item() / 2  * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
+                                return sum([coefs[i - 1][7] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
                             case 'Hz':
-                                return -np.sqrt(3 * eps / mu).item() / 2  * sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (min(i, p[0]) * x + i * y - min(i, p[1]) * z - np.sqrt(min(i, p[0]) ** 2 + i ** 2 + min(i, p[1]) ** 2) * c * t))) for i in range(1, max(p) + 1)])
-                        return s
+                                return sum([coefs[i - 1][8] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
             for d in order:
                 EH['solver'][d] =lambda x,y,z,t,g: solved(x,y,z,t,d,g)
     info = {cat : [] for cat in 'sims,grids,times,round,svd,qr,add,norm,errors,sizes,rank1,rank2'.split(',')}
@@ -285,7 +296,8 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             cell_size = 1 / (grid_size)
         elif boundary == "Periodic":
             cell_size = 1 / grid_size
-        t = 1 / grid_size / c / np.sqrt(3).item() #Accounts for Courant limit
+        #t = 1 / grid_size / c / np.sqrt(2).item() / 4 #Accounts for Courant limit
+        t = 1 / grid_size / c / np.sqrt(2).item()
         #Reused constants
         eps1 = t / eps / cell_size
         mu1 = -t / mu / cell_size
@@ -354,6 +366,38 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     EH['solving']['Ey'] = torch.zeros((grid_size, grid_size - 1, grid_size), device = device, dtype = precision)
                     EH['solving']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
                     EH['solving']['Hx'] = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
+            elif boundary == "Periodic":
+                if solution == 6:
+                    def solved(x, y, z, t, d, g):
+                        coefs = [] # fx,fy,fz,ft,ey,ez,hx,hy,hz
+                        for i in range(1, max(p) + 1):
+                            fx = min(i, p[0])
+                            fy = i
+                            fz = min(i, p[1])
+                            ft = -np.sqrt(fx ** 2 + fy ** 2 + fz ** 2) * c
+                            ey = -fx * np.sqrt(fy) / 2
+                            ez = (np.sqrt(fy) * fy - 2) * fx / (2 * fz)
+                            hx = (ey * fz - ez * fy) / (ft * mu)
+                            hy = (ez * fx - fz) / (ft * mu)
+                            hz = (fy - ey * fx) / (ft * mu)
+                            coefs.append([fx,fy,fz,ft,ey,ez,hx,hy,hz])
+                        match d:
+                            case 'Ex':
+                                return sum([np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                            case 'Ey':
+                                return sum([coefs[i - 1][4] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                            case 'Ez':
+                                return sum([coefs[i - 1][5] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                            case 'Hx':
+                                return sum([coefs[i - 1][6] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                            case 'Hy':
+                                return sum([coefs[i - 1][7] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                            case 'Hz':
+                                return sum([coefs[i - 1][8] * np.cos(2 * np.pi * np.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                    for d in order:
+                        EH['solving'][d] = solved(X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t, d, grid_size)
+                        if not npy:
+                            EH['solving'][d] = torch.tensor(EH['solving'][d], device = device, dtype = precision)
             if boundary == "PEC":
                 EH['solving']['Ex'][:, :, 0] = 0
                 EH['solving']['Ex'][:, :, -1] = 0
@@ -384,6 +428,15 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             timing = 0
             if device == 'cuda':
                 events = [torch.cuda.Event(enable_timing = True) for _ in range(2)] #start, end
+            hOrder = 2
+            if hOrder == 2:
+                coefs = [-1, 1]
+            elif hOrder == 4:
+                coefs = [1/24, -27/24, 27/24, -1/24]
+            def ecurl(d, rd):
+                return sum([coefs[j] * roll(EH['solving'][d], (hOrder // 2) - 1 - j, rd) for j in range(hOrder)])
+            def hcurl(d, rd):
+                return sum([coefs[j] * roll(EH['solving'][d], (hOrder // 2) - j, rd) for j in range(hOrder)])
             #The actual simulation update loop
             for i in range(grid_size * iters):
                 if i % (iters) == 0:
@@ -394,12 +447,12 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     else:           
                         timing -= time.time()
                     if boundary == "Periodic":
-                        EH['solving']['Hx'] += mu1 * (roll(EH['solving']['Ez'], -1, 1) - EH['solving']['Ez'] - roll(EH['solving']['Ey'], -1, 2) + EH['solving']['Ey'])
-                        EH['solving']['Hy'] += mu1 * (roll(EH['solving']['Ex'], -1, 2) - EH['solving']['Ex'] - roll(EH['solving']['Ez'], -1, 0) + EH['solving']['Ez'])
-                        EH['solving']['Hz'] += mu1 * (roll(EH['solving']['Ey'], -1, 0) - EH['solving']['Ey'] - roll(EH['solving']['Ex'], -1, 1) + EH['solving']['Ex'])
-                        EH['solving']['Ex'] += eps1 * (EH['solving']['Hz'] - roll(EH['solving']['Hz'], 1, 1) - EH['solving']['Hy'] + roll(EH['solving']['Hy'], 1, 2))
-                        EH['solving']['Ey'] += eps1 * (EH['solving']['Hx'] - roll(EH['solving']['Hx'], 1, 2) - EH['solving']['Hz'] + roll(EH['solving']['Hz'], 1, 0))
-                        EH['solving']['Ez'] += eps1 * (EH['solving']['Hy'] - roll(EH['solving']['Hy'], 1, 0) - EH['solving']['Hx'] + roll(EH['solving']['Hx'], 1, 1))
+                        EH['solving']['Hx'] += mu1 * (ecurl('Ez', 1) - ecurl('Ey', 2))
+                        EH['solving']['Hy'] += mu1 * (ecurl('Ex', 2) - ecurl('Ez', 0))
+                        EH['solving']['Hz'] += mu1 * (ecurl('Ey', 0) - ecurl('Ex', 1))
+                        EH['solving']['Ex'] += eps1 * (hcurl('Hz', 1) - hcurl('Hy', 2))
+                        EH['solving']['Ey'] += eps1 * (hcurl('Hx', 2) - hcurl('Hz', 0))
+                        EH['solving']['Ez'] += eps1 * (hcurl('Hy', 0) - hcurl('Hx', 1))
                     elif boundary == "PEC":
                         EH['solving']['Hx'] += mu1 * (EH['solving']['Ez'][:, 1:, :] - EH['solving']['Ez'][:, :-1, :] - EH['solving']['Ey'][:, :, 1:] + EH['solving']['Ey'][:, :, :-1])
                         EH['solving']['Hy'] += mu1 * (EH['solving']['Ex'][:, :, 1:] - EH['solving']['Ex'][:, :, :-1] - EH['solving']['Ez'][1:, :, :] + EH['solving']['Ez'][:-1, :, :])
@@ -483,10 +536,11 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             if not analytic:
                 if not ignore_error:
                     for d in order:
-                        EH['solved'][d] = EH['solver'][d](np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'))
+                        EH['solved'][d] = EH['solver'][d](np.stack(np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'), axis = -1))
             else:
                 for d in order:
                     EH['solved'][d] = EH['solver'][d](*np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'), (iters * grid_size + yee[d][3]) * t, grid_size)
+                    #print((iters * grid_size + yee[d][3]) * t * c * 2 * np.pi)
             info['times'][-1].append(timing)
             info['rank1'][-1].append([])
             info['rank2'][-1].append([])
@@ -515,7 +569,8 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                                 np.sum((EH['solving']['Ex'] - EH['solved']['Ex']) ** 2) +
                                 np.sum((EH['solving']['Ey'] - EH['solved']['Ey']) ** 2) +
                                 np.sum((EH['solving']['Ez'] - EH['solved']['Ez']) ** 2)
-                            ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2)) + (
+                            ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2))
+                            + (
                                 np.sum((EH['solving']['Hx'] - EH['solved']['Hx']) ** 2) +
                                 np.sum((EH['solving']['Hy'] - EH['solved']['Hy']) ** 2) +
                                 np.sum((EH['solving']['Hz'] - EH['solved']['Hz']) ** 2)
