@@ -11,4 +11,7 @@ x = distribute_tensor(torch.rand(100, 100, device = "cuda"), device_mesh=device_
 print(x, flush = True)
 print(x.shape, flush = True)
 print(x + x.T)
+x[:, 0] = 0
+x[0, :] = 0
+print(x, flush = True)
 torch.distributed.destroy_process_group()
