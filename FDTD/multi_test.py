@@ -336,7 +336,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 print(f'Solver for {ending} with {"numpy" if npy else "torch"}', flush = True)
                 simulation_type = 0
                    
-            X, Y, Z = np.meshgrid(x, x, x, indexing = 'ij')
+            #X, Y, Z = np.meshgrid(x, x, x, indexing = 'ij')
         
             #Create Tensors; Assume appropriate yee cell for both H at each half integer timestep and E at each integer timestep
             if analytic:
@@ -351,8 +351,10 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     grid_size += 1
                     EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
                     EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
-                    EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (X[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (Y[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (Z[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
-                    EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (X[::2, 1::2, ::2])) * np.cos(np.pi * i * (Y[::2, 1::2, ::2])) * np.cos(np.pi * min(i, p[1]) * (Z[::2, 1::2, ::2])) for i in range(1, max(p) + 1)])
+                    X, Y, Z = np.meshgrid(x[1::2], x[::2], x[1::2], indexing = 'ij')
+                    EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (X + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (Y + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (Z + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
+                    X, Y, Z = np.meshgrid(x[::2], x[1::2], x[::2], indexing = 'ij')
+                    EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * X) * np.cos(np.pi * i * Y) * np.cos(np.pi * min(i, p[1]) * Z) for i in range(1, max(p) + 1)])
                     if not npy:
                         EH['solving']['Hy'] = torch.tensor(EH['solving']['Hy'], device = device, dtype = precision)
                         EH['solving']['Ey'] = torch.tensor(EH['solving']['Ey'], device = device, dtype = precision)
