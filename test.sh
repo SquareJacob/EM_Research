@@ -7,4 +7,4 @@
 #SBATCH --gpus-per-node=4
 
 source activate trains
-python osc_test.py
+torchrun osc_test.py
