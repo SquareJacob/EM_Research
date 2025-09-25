@@ -297,7 +297,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         elif boundary == "Periodic":
             cell_size = 1 / grid_size
         #t = 1 / grid_size / c / np.sqrt(2).item() / 4 #Accounts for Courant limit
-        t = 1 / grid_size / c / np.sqrt(2).item()
+        t = 1 / grid_size / c / np.sqrt(3).item()
         #Reused constants
         eps1 = t / eps / cell_size
         mu1 = -t / mu / cell_size
@@ -460,6 +460,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         EH['solving']['Ex'][:, 1:-1, 1:-1] += eps1 * (EH['solving']['Hz'][:, 1:, 1:-1] - EH['solving']['Hz'][:, :-1, 1:-1] - EH['solving']['Hy'][:, 1:-1, 1:] + EH['solving']['Hy'][:, 1:-1, :-1])
                         EH['solving']['Ey'][1:-1, :, 1:-1] += eps1 * (EH['solving']['Hx'][1:-1, :, 1:] - EH['solving']['Hx'][1:-1, :, :-1] - EH['solving']['Hz'][1:, :, 1:-1] + EH['solving']['Hz'][:-1, :, 1:-1])
                         EH['solving']['Ez'][1:-1, 1:-1, :] += eps1 * (EH['solving']['Hy'][1:, 1:-1, :] - EH['solving']['Hy'][:-1, 1:-1, :] - EH['solving']['Hx'][1:-1, 1:, :] + EH['solving']['Hx'][1:-1, :-1, :])
+                        #print([torch.linalg.norm(EH['solving'][d]).item() for d in order])
                     if device == 'cuda':
                         events[1].record()
                     else:           
@@ -570,11 +571,11 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                                 np.sum((EH['solving']['Ey'] - EH['solved']['Ey']) ** 2) +
                                 np.sum((EH['solving']['Ez'] - EH['solved']['Ez']) ** 2)
                             ) / (np.sum(EH['solved']['Ex'] ** 2) + np.sum(EH['solved']['Ey'] ** 2) + np.sum(EH['solved']['Ez'] ** 2))
-                            + (
-                                np.sum((EH['solving']['Hx'] - EH['solved']['Hx']) ** 2) +
-                                np.sum((EH['solving']['Hy'] - EH['solved']['Hy']) ** 2) +
-                                np.sum((EH['solving']['Hz'] - EH['solved']['Hz']) ** 2)
-                            ) / (np.sum(EH['solved']['Hx'] ** 2) + np.sum(EH['solved']['Hy'] ** 2) + np.sum(EH['solved']['Hz'] ** 2))
+                            # + (
+                            #     np.sum((EH['solving']['Hx'] - EH['solved']['Hx']) ** 2) +
+                            #     np.sum((EH['solving']['Hy'] - EH['solved']['Hy']) ** 2) +
+                            #     np.sum((EH['solving']['Hz'] - EH['solved']['Hz']) ** 2)
+                            # ) / (np.sum(EH['solved']['Hx'] ** 2) + np.sum(EH['solved']['Hy'] ** 2) + np.sum(EH['solved']['Hz'] ** 2))
                         )
                     )
                 )
