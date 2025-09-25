@@ -15,3 +15,5 @@ FDTD/*
 !torch.sh
 !transfer
 !transfer/*
+!osc_test.py
+!test.sh
