@@ -4,7 +4,7 @@
 #SBATCH --time=2:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --ntasks-per-node=1
-#SBATCH --mem=64G
+#SBATCH --mem=256G
 #SBATCH --gpus-per-node=1
 
 source activate trains
