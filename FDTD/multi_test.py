@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import json
 import os
 from typing import Literal, Tuple, Union
+from torch.distributed.tensor import distribute_tensor, init_device_mesh, Shard
 
 #IMPORTANT: While the code itself may not be written as optimally as possible, the algorithms are
 
@@ -35,6 +36,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
     EHk = ['solving', 'solver', 'solved']
     EH = {k: {} for k in EHk}
     ixer = {k: tuple(slice(yee[k][i], None, 2) for i in range(3)) for k in order} #indexing when using half-spaced grid
+    distributed = False
     if npy:
         from Tensor_Train.TT import TT
         from numpy import roll
@@ -48,6 +50,12 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         pre2 = np.float64
         device = device if torch.cuda.is_available() else "cpu"
         print(f"DEVICE:{device}", flush = True)
+        if device == "cuda":
+            world_size = int(os.environ["WORLD_SIZE"])
+            if world_size > 1:
+                distributed = True
+                print(f"Distributed tensors over {world_size} ranks", flush = True)
+                device_mesh = init_device_mesh("cuda", (world_size,))
     precision = torch.float64
     TT.roundInPlus = False
     TT.oldRound = False
