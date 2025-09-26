@@ -366,28 +366,27 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             elif boundary == "PEC":
                 if solution == 2:
                     grid_size += 1
-                    if distributed:
-                        zeros((grid_size - 1, grid_size, grid_size), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
-                    else:
-                        EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
-                    EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
-                    if distributed:
-                        EH['solving']['Hz'] = distribute_tensor(EH['solving']['Hz'], device_mesh=device_mesh, placements = [Shard(2)])
                     EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (x[1::2, None, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (x[None, ::2, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (x[None, None, 1::2] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
                     EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * x[::2, None, None]) * np.cos(np.pi * i * x[None, 1::2, None]) * np.cos(np.pi * min(i, p[1]) * x[None, None, ::2]) for i in range(1, max(p) + 1)])
                     if not npy:
                         EH['solving']['Hy'] = torch.from_numpy(EH['solving']['Hy']).to(device)
                         if distributed:
                             EH['solving']['Hy'] = distribute_tensor(EH['solving']['Hy'], device_mesh=device_mesh, placements = [Shard(1)])
+                        torch.cuda.empty_cache()
                         EH['solving']['Ey'] = torch.from_numpy(EH['solving']['Ey']).to(device)
                         if distributed:
                             EH['solving']['Ey'] = distribute_tensor(EH['solving']['Ey'], device_mesh=device_mesh, placements = [Shard(1)])
-                    EH['solving']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
+                        torch.cuda.empty_cache()
                     if distributed:
-                        EH['solving']['Ez'] = distribute_tensor(EH['solving']['Ez'], device_mesh=device_mesh, placements = [Shard(2)])
-                    EH['solving']['Hx'] = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
-                    if distributed:
-                        EH['solving']['Hx'] = distribute_tensor(EH['solving']['Hx'], device_mesh=device_mesh, placements = [Shard(1)])
+                        EH['solving']['Ex'] = zeros((grid_size - 1, grid_size, grid_size), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
+                        EH['solving']['Hz'] = zeros((grid_size - 1, grid_size - 1, grid_size), device_mesh = device_mesh, dtype = precision, placements = [Shard(2)])
+                        EH['solving']['Ez'] = zeros((grid_size, grid_size, grid_size - 1), device_mesh = device_mesh, dtype = precision, placements = [Shard(2)])
+                        EH['solving']['Hx'] = zeros((grid_size, grid_size - 1, grid_size - 1), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
+                    else:
+                        EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
+                        EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
+                        EH['solving']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
+                        EH['solving']['Hx'] = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
                     grid_size -= 1
                 elif solution == 3:
                     EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
