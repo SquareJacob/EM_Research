@@ -576,7 +576,10 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             if solver:
                 os.makedirs(ending, exist_ok = True)
                 for d in order:
-                    np.save(os.path.join(ending, d), EH['solving'][d].cpu().numpy())
+                    if distributed:
+                        np.save(os.path.join(ending, d), EH['solving'][d].cpu()full_tensor().numpy())
+                    else:
+                        np.save(os.path.join(ending, d), EH['solving'][d].cpu().numpy())
                     del EH['solving'][d]
                 del x
                 torch.cuda.empty_cache()
