@@ -75,6 +75,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             world_size = int(os.environ["WORLD_SIZE"])
             if world_size > 1:
                 distributed = True
+                torch.distributed.init_process_group(backend = "nccl")
                 rank = int(os.environ["RANK"])
                 if rank == 0:
                     print(f"Distributed tensors over {world_size} ranks", flush = True)
