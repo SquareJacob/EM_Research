@@ -373,8 +373,8 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
                     if distributed:
                         EH['solving']['Hz'] = distribute_tensor(EH['solving']['Hz'], device_mesh=device_mesh, placements = [Shard(2)])
-                    X, Y, Z = np.meshgrid(x[1::2], x[::2], x[1::2], indexing = 'ij')
-                    EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (X + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (Y + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (Z + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
+                    #X, Y, Z = np.meshgrid(x[1::2], x[::2], x[1::2], indexing = 'ij')
+                    EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (x[1::2, None, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (x[None, ::2, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (x[None, None, 1::2] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
                     X, Y, Z = np.meshgrid(x[::2], x[1::2], x[::2], indexing = 'ij')
                     EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * X) * np.cos(np.pi * i * Y) * np.cos(np.pi * min(i, p[1]) * Z) for i in range(1, max(p) + 1)])
                     if not npy:
