@@ -625,4 +625,5 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             json.dump(info, f)
         if solver:
             break
-    torch.distributed.destroy_process_group()    
+    if distributed:
+        torch.distributed.destroy_process_group()    
