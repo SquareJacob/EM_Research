@@ -367,7 +367,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 if solution == 2:
                     grid_size += 1
                     if distributed:
-                        zeros((grid_size - 1, grid_size, grid_size), device_mesh = device_mesh, dtype = precision)
+                        zeros((grid_size - 1, grid_size, grid_size), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
                     else:
                         EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
                     EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
