@@ -36,6 +36,28 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
     EHk = ['solving', 'solver', 'solved']
     EH = {k: {} for k in EHk}
     ixer = {k: tuple(slice(yee[k][i], None, 2) for i in range(3)) for k in order} #indexing when using half-spaced grid
+    #Figuring out simulation from boundary and solution number
+    analytic = True
+    ending = f"{boundary}-{solution}-{iters}"
+    if boundary == "PEC":
+        if solution in [1, 5]:
+            ending += f'-{n}'
+        elif solution == 2:
+            analytic = False
+            ending += f'-{solver_size}-{n}'
+        elif solution == 3:
+            analytic = False
+            ending += f'-{solver_size}-{a}'
+        elif solution == 4:
+            ending += f'-{n}'
+    elif boundary == "Periodic":
+        if solution in [3, 4, 5]:
+            ending += f'-{n}'
+        elif solution == 6:
+            analytic = False
+            ending += f'-{p}'
+    if not analytic and not os.path.isdir(ending) and not solver and not ignore_error:
+        multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True)
     distributed = False
     if npy:
         from Tensor_Train.TT import TT
@@ -62,28 +84,6 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
     precision = torch.float64
     TT.roundInPlus = False
     TT.oldRound = False
-    #Figuring out simulation from boundary and solution number
-    analytic = True
-    ending = f"{boundary}-{solution}-{iters}"
-    if boundary == "PEC":
-        if solution in [1, 5]:
-            ending += f'-{n}'
-        elif solution == 2:
-            analytic = False
-            ending += f'-{solver_size}-{n}'
-        elif solution == 3:
-            analytic = False
-            ending += f'-{solver_size}-{a}'
-        elif solution == 4:
-            ending += f'-{n}'
-    elif boundary == "Periodic":
-        if solution in [3, 4, 5]:
-            ending += f'-{n}'
-        elif solution == 6:
-            analytic = False
-            ending += f'-{p}'
-    if not analytic and not os.path.isdir(ending) and not solver and not ignore_error:
-        multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True)
     if not solver:
         if not distributed or rank == 0:
             print(f'Simulation for: {ending} with {"numpy" if npy else "torch"}', flush = True)
