@@ -608,7 +608,10 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     info['rank2'][-1][-1].append(lranks[i][1])
             if not npy:
                 for d in order:
-                    EH['solving'][d] = EH['solving'][d].cpu().numpy()
+                    if distributed:
+                        EH['solving'][d] = EH['solving'][d].cpu().full_tensor().numpy()
+                    else:
+                        EH['solving'][d] = EH['solving'][d].cpu().numpy()
             if not ignore_error or analytic:
                 info['errors'][-1].append(
                     np.sqrt(
