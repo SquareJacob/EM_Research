@@ -57,11 +57,10 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 if original_call:
                     dist.init_process_group(backend = "nccl")
                 rank = int(os.environ["RANK"])
-                if rank == 0:
-                    print(f"Distributed tensors over {world_size} ranks", flush = True)
+                print(f"DEVICE:cuda{rank} with {torch.cuda.mem_get_info() / (1024 ** 3)} GB")
                 device_mesh = init_device_mesh("cuda", (world_size,))
             else:
-                print(f"DEVICE:{device}", flush = True)
+                print(f"DEVICE:{device} with {torch.cuda.mem_get_info() / (1024 ** 3)} GB", flush = True)
     precision = torch.float64
     TT.roundInPlus = False
     TT.oldRound = False
