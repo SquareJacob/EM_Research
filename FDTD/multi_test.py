@@ -378,10 +378,10 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     X, Y, Z = np.meshgrid(x[::2], x[1::2], x[::2], indexing = 'ij')
                     EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * X) * np.cos(np.pi * i * Y) * np.cos(np.pi * min(i, p[1]) * Z) for i in range(1, max(p) + 1)])
                     if not npy:
-                        EH['solving']['Hy'] = torch.tensor(EH['solving']['Hy'], device = device, dtype = precision)
+                        EH['solving']['Hy'] = torch.from_numpy(EH['solving']['Hy']).to(device)
                         if distributed:
                             EH['solving']['Hy'] = distribute_tensor(EH['solving']['Hy'], device_mesh=device_mesh, placements = [Shard(1)])
-                        EH['solving']['Ey'] = torch.tensor(EH['solving']['Ey'], device = device, dtype = precision)
+                        EH['solving']['Ey'] = torch.from_numpy(EH['solving']['Ey']).to(device)
                         if distributed:
                             EH['solving']['Ey'] = distribute_tensor(EH['solving']['Ey'], device_mesh=device_mesh, placements = [Shard(1)])
                     EH['solving']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
