@@ -577,7 +577,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 os.makedirs(ending, exist_ok = True)
                 for d in order:
                     if distributed:
-                        np.save(os.path.join(ending, d), EH['solving'][d].cpu().full_tensor().numpy())
+                        np.save(os.path.join(ending, d), EH['solving'][d].full_tensor().cpu().numpy())
                     else:
                         np.save(os.path.join(ending, d), EH['solving'][d].cpu().numpy())
                     del EH['solving'][d]
@@ -612,7 +612,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             if not npy:
                 for d in order:
                     if distributed:
-                        EH['solving'][d] = EH['solving'][d].cpu().full_tensor().numpy()
+                        EH['solving'][d] = EH['solving'][d].full_tensor().cpu().numpy()
                     else:
                         EH['solving'][d] = EH['solving'][d].cpu().numpy()
             if not ignore_error or analytic:
