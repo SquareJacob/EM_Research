@@ -362,7 +362,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         EH['solving']['Ex'] = distribute_tensor(EH['solving']['Ex'], device_mesh=device_mesh, placements = [Shard(0)])
                     EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
                     if distributed:
-                        EH['solving']['Hz'] = distribute_tensor(EH['solving']['Hz'], device_mesh=device_mesh, placements = [Shard(0)])
+                        EH['solving']['Hz'] = distribute_tensor(EH['solving']['Hz'], device_mesh=device_mesh, placements = [Shard(2)])
                     X, Y, Z = np.meshgrid(x[1::2], x[::2], x[1::2], indexing = 'ij')
                     EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (X + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (Y + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (Z + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
                     X, Y, Z = np.meshgrid(x[::2], x[1::2], x[::2], indexing = 'ij')
@@ -370,16 +370,16 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     if not npy:
                         EH['solving']['Hy'] = torch.tensor(EH['solving']['Hy'], device = device, dtype = precision)
                         if distributed:
-                            EH['solving']['Hy'] = distribute_tensor(EH['solving']['Hy'], device_mesh=device_mesh, placements = [Shard(0)])
+                            EH['solving']['Hy'] = distribute_tensor(EH['solving']['Hy'], device_mesh=device_mesh, placements = [Shard(1)])
                         EH['solving']['Ey'] = torch.tensor(EH['solving']['Ey'], device = device, dtype = precision)
                         if distributed:
-                            EH['solving']['Ey'] = distribute_tensor(EH['solving']['Ey'], device_mesh=device_mesh, placements = [Shard(0)])
+                            EH['solving']['Ey'] = distribute_tensor(EH['solving']['Ey'], device_mesh=device_mesh, placements = [Shard(1)])
                     EH['solving']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
                     if distributed:
-                        EH['solving']['Ez'] = distribute_tensor(EH['solving']['Ez'], device_mesh=device_mesh, placements = [Shard(0)])
+                        EH['solving']['Ez'] = distribute_tensor(EH['solving']['Ez'], device_mesh=device_mesh, placements = [Shard(2)])
                     EH['solving']['Hx'] = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
                     if distributed:
-                        EH['solving']['Hx'] = distribute_tensor(EH['solving']['Hx'], device_mesh=device_mesh, placements = [Shard(0)])
+                        EH['solving']['Hx'] = distribute_tensor(EH['solving']['Hx'], device_mesh=device_mesh, placements = [Shard(1)])
                     grid_size -= 1
                 elif solution == 3:
                     EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
@@ -421,18 +421,35 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         if not npy:
                             EH['solving'][d] = torch.tensor(EH['solving'][d], device = device, dtype = precision)
             if boundary == "PEC":
-                EH['solving']['Ex'][:, :, 0] = 0
-                EH['solving']['Ex'][:, :, -1] = 0
-                EH['solving']['Ex'][:, 0, :] = 0
-                EH['solving']['Ex'][:, -1, :] = 0
-                EH['solving']['Ey'][:, :, 0] = 0
-                EH['solving']['Ey'][:, :, -1] = 0
-                EH['solving']['Ey'][0, :, :] = 0
-                EH['solving']['Ey'][-1, :, :] = 0
-                EH['solving']['Ez'][0, :, :] = 0
-                EH['solving']['Ez'][-1, :, :] = 0
-                EH['solving']['Ez'][:, 0, :] = 0
-                EH['solving']['Ez'][:, -1, :] = 0
+                if distributed:
+                    Ex = EH['solving']['Ex'].to_local()
+                    Ex[:, :, 0].zero_()
+                    Ex[:, :, -1].zero_()
+                    Ex[:, 0, :].zero_()
+                    Ex[:, -1, :].zero_()
+                    Ey = EH['solving']['Ey'].to_local()
+                    Ey[:, :, 0].zero_()
+                    Ey[:, :, -1].zero_()
+                    Ey[0, :, :].zero_()
+                    Ey[-1, :, :].zero_()
+                    Ez = EH['solving']['Ez'].to_local()
+                    Ez[0, :, :].zero_()
+                    Ez[-1, :, :].zero_()
+                    Ez[:, 0, :].zero_()
+                    Ez[:, -1, :].zero_()
+                else:
+                    EH['solving']['Ex'][:, :, 0] = 0
+                    EH['solving']['Ex'][:, :, -1] = 0
+                    EH['solving']['Ex'][:, 0, :] = 0
+                    EH['solving']['Ex'][:, -1, :] = 0
+                    EH['solving']['Ey'][:, :, 0] = 0
+                    EH['solving']['Ey'][:, :, -1] = 0
+                    EH['solving']['Ey'][0, :, :] = 0
+                    EH['solving']['Ey'][-1, :, :] = 0
+                    EH['solving']['Ez'][0, :, :] = 0
+                    EH['solving']['Ez'][-1, :, :] = 0
+                    EH['solving']['Ez'][:, 0, :] = 0
+                    EH['solving']['Ez'][:, -1, :] = 0
             
 
             if not npy:
