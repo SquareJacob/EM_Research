@@ -9,7 +9,7 @@ from torch.distributed.tensor import distribute_tensor, init_device_mesh, Shard
 
 #IMPORTANT: While the code itself may not be written as optimally as possible, the algorithms are
 
-def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, sizes: Tuple[int], npy: bool, simulations: list[dict], param = None, eps: float = 8.854e-12, mu: float = np.pi * 4e-7, device: Literal['cpu', 'cuda'] = 'cuda', solver: bool = False, ignore_error: bool = False):
+def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, sizes: Tuple[int], npy: bool, simulations: list[dict], param = None, eps: float = 8.854e-12, mu: float = np.pi * 4e-7, device: Literal['cpu', 'cuda'] = 'cuda', solver: bool = False, ignore_error: bool = False, original_call : bool = True):
     #Initial setup
     c = 1/np.sqrt(mu * eps).item()
     if len(sizes) > 2:
@@ -37,6 +37,34 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
     EHk = ['solving', 'solver', 'solved']
     EH = {k: {} for k in EHk}
     ixer = {k: tuple(slice(yee[k][i], None, 2) for i in range(3)) for k in order} #indexing when using half-spaced grid
+    distributed = False
+    if npy:
+        from Tensor_Train.TT import TT
+        from numpy import roll
+        import numpy as torch
+        device = 'cpu'
+    else:
+        from Tensor_Train.TT import torchTT as TT
+        import torch
+        from torch import roll
+        torch.backends.cuda.matmul.allow_tf32 = True
+        pre2 = np.float64
+        device = device if torch.cuda.is_available() else "cpu"
+        if device == "cuda":
+            world_size = int(os.environ["WORLD_SIZE"])
+            if world_size > 1:
+                distributed = True
+                if original_call:
+                    dist.init_process_group(backend = "nccl")
+                rank = int(os.environ["RANK"])
+                if rank == 0:
+                    print(f"Distributed tensors over {world_size} ranks", flush = True)
+                device_mesh = init_device_mesh("cuda", (world_size,))
+            else:
+                print(f"DEVICE:{device}", flush = True)
+    precision = torch.float64
+    TT.roundInPlus = False
+    TT.oldRound = False
     #Figuring out simulation from boundary and solution number
     analytic = True
     ending = f"{boundary}-{solution}-{iters}"
@@ -58,34 +86,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             analytic = False
             ending += f'-{p}'
     if not analytic and not os.path.isdir(ending) and not solver and not ignore_error:
-        multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True)
-    distributed = False
-    if npy:
-        from Tensor_Train.TT import TT
-        from numpy import roll
-        import numpy as torch
-        device = 'cpu'
-    else:
-        from Tensor_Train.TT import torchTT as TT
-        import torch
-        from torch import roll
-        torch.backends.cuda.matmul.allow_tf32 = True
-        pre2 = np.float64
-        device = device if torch.cuda.is_available() else "cpu"
-        if device == "cuda":
-            world_size = int(os.environ["WORLD_SIZE"])
-            if world_size > 1:
-                distributed = True
-                dist.init_process_group(backend = "nccl")
-                rank = int(os.environ["RANK"])
-                if rank == 0:
-                    print(f"Distributed tensors over {world_size} ranks", flush = True)
-                device_mesh = init_device_mesh("cuda", (world_size,))
-            else:
-                print(f"DEVICE:{device}", flush = True)
-    precision = torch.float64
-    TT.roundInPlus = False
-    TT.oldRound = False
+        multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True, False)
     if not solver:
         if not distributed or rank == 0:
             print(f'Simulation for: {ending} with {"numpy" if npy else "torch"}', flush = True)
@@ -645,6 +646,6 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             json.dump(info, f)
         if solver:
             break
-    if distributed:
+    if distributed and original_call:
         dist.barrier()
         dist.destroy_process_group()    
