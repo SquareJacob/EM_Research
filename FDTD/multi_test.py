@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import json
 import os
 from typing import Literal, Tuple, Union
+import torch.distributed as dist
 from torch.distributed.tensor import distribute_tensor, init_device_mesh, Shard
 
 #IMPORTANT: While the code itself may not be written as optimally as possible, the algorithms are
@@ -75,7 +76,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             world_size = int(os.environ["WORLD_SIZE"])
             if world_size > 1:
                 distributed = True
-                torch.distributed.init_process_group(backend = "nccl")
+                dist.init_process_group(backend = "nccl")
                 rank = int(os.environ["RANK"])
                 if rank == 0:
                     print(f"Distributed tensors over {world_size} ranks", flush = True)
@@ -574,6 +575,8 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                                 TT.times[key] += TT.events[key][j].elapsed_time(TT.events[key][j + 1]) / 1000
                             TT.events[key] = []
             #After simulation; data fetching
+            if distributed:
+                dist.barrier()
             if solver:
                 os.makedirs(ending, exist_ok = True)
                 for d in order:
@@ -583,6 +586,8 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         np.save(os.path.join(ending, d), EH['solving'][d].cpu().numpy())
                     del EH['solving'][d]
                 del x
+                if distributed:
+                    dist.barrier()
                 torch.cuda.empty_cache()
                 break
             if not analytic:
@@ -641,4 +646,5 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         if solver:
             break
     if distributed:
-        torch.distributed.destroy_process_group()    
+        dist.barrier()
+        dist.destroy_process_group()    
