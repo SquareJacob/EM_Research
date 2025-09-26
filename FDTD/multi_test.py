@@ -49,13 +49,16 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         torch.backends.cuda.matmul.allow_tf32 = True
         pre2 = np.float64
         device = device if torch.cuda.is_available() else "cpu"
-        print(f"DEVICE:{device}", flush = True)
         if device == "cuda":
             world_size = int(os.environ["WORLD_SIZE"])
             if world_size > 1:
                 distributed = True
-                print(f"Distributed tensors over {world_size} ranks", flush = True)
+                rank = int(os.environ["RANK"])
+                if rank == 0:
+                    print(f"Distributed tensors over {world_size} ranks", flush = True)
                 device_mesh = init_device_mesh("cuda", (world_size,))
+            else:
+                print(f"DEVICE:{device}", flush = True)
     precision = torch.float64
     TT.roundInPlus = False
     TT.oldRound = False
@@ -82,7 +85,8 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
     if not analytic and not os.path.isdir(ending) and not solver and not ignore_error:
         multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True)
     if not solver:
-        print(f'Simulation for: {ending} with {"numpy" if npy else "torch"}', flush = True)
+        if not distributed or rank == 0:
+            print(f'Simulation for: {ending} with {"numpy" if npy else "torch"}', flush = True)
         if not analytic: #Approximate non-analytic solutions using pre-solved solution using interpolation
             if not ignore_error:
                 if boundary == 'PEC':
@@ -333,15 +337,18 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 else:
                     group = False
                 if simulation_type == 0:
-                    print('Basic simulation', flush = True)
+                    if not distributed or rank == 0:
+                        print('Basic simulation', flush = True)
                     if grid_size == sizes[0]:
                         info['sims'].append('basic')
                 else:
-                    print(f'Error {error}, {f"group round with zero {zero_thres}" if group else "groupless"}', flush = True)
+                    if not distributed or rank == 0:
+                        print(f'Error {error}, {f"group round with zero {zero_thres}" if group else "groupless"}', flush = True)
                     if grid_size == sizes[0]:
                         info['sims'].append(f'{error}-{zero_thres}')
             else:
-                print(f'Solver for {ending} with {"numpy" if npy else "torch"}', flush = True)
+                if not distributed or rank == 0:
+                    print(f'Solver for {ending} with {"numpy" if npy else "torch"}', flush = True)
                 simulation_type = 0
                    
             #X, Y, Z = np.meshgrid(x, x, x, indexing = 'ij')
@@ -479,7 +486,8 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             #The actual simulation update loop
             for i in range(grid_size * iters):
                 if i % (iters) == 0:
-                    print(f'{round(i / iters)}/{grid_size}', flush = True)
+                    if not distributed or rank == 0:
+                        print(f'{round(i / iters)}/{grid_size}', flush = True)
                 if simulation_type == 0:
                     if device == 'cuda':
                         events[0].record()
