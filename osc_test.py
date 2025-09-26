@@ -25,3 +25,8 @@ if rank == zero // (x.shape[0] / world_size):
 dist.barrier()
 print(f"FULL ZERO:{x.full_tensor()}", flush = True)
 torch.distributed.destroy_process_group()
+
+dist.init_process_group(backend = "nccl")
+device_mesh = init_device_mesh("cuda", (world_size,))
+x = distribute_tensor(torch.rand(8, 8, device = "cuda"), device_mesh=device_mesh, placements = [Shard(0)])
+print(f"ORIGINAL:{x.full_tensor()}", flush = True)
