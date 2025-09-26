@@ -368,6 +368,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     grid_size += 1
                     print("reaching big", flush = True)
                     EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (x[1::2, None, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (x[None, ::2, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (x[None, None, 1::2] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
+                    print(EH['solving']['Hy'].shape, EH['solving']['Hy'].nbytes / (1024 ** 3), flush = True)
                     EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * x[::2, None, None]) * np.cos(np.pi * i * x[None, 1::2, None]) * np.cos(np.pi * min(i, p[1]) * x[None, None, ::2]) for i in range(1, max(p) + 1)])
                     print("after big", flush = True)
                     if not npy:
