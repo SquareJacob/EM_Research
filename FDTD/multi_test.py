@@ -86,7 +86,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             analytic = False
             ending += f'-{p}'
     if not analytic and not os.path.isdir(ending) and not solver and not ignore_error:
-        multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True, False)
+        multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True, True, False)
     if not solver:
         if not distributed or rank == 0:
             print(f'Simulation for: {ending} with {"numpy" if npy else "torch"}', flush = True)
