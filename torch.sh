@@ -5,7 +5,7 @@
 #SBATCH --mail-type=ALL
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem=64G
-#SBATCH --gpus-per-node=4
+#SBATCH --gpus-per-node=1
 
 source activate trains
-torchrun --nproc_per_node=4 script.py
+torchrun --nproc_per_node=1 script.py
