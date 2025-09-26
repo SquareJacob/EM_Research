@@ -20,7 +20,7 @@ dist.barrier()
 local = x.to_local()
 zero = 7
 if rank == zero // (x.shape[0] / world_size):
-    local[int(zero % (x.shape[0] / world_size)), :].zero_()
+    x[int(zero % (x.shape[0] / world_size)), :].zero_()
 #local[:, 3].zero_()
 dist.barrier()
 print(f"FULL ZERO:{x.full_tensor()}", flush = True)
