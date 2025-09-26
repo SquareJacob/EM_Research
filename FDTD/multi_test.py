@@ -5,7 +5,7 @@ import json
 import os
 from typing import Literal, Tuple, Union
 import torch.distributed as dist
-from torch.distributed.tensor import distribute_tensor, init_device_mesh, Shard
+from torch.distributed.tensor import distribute_tensor, init_device_mesh, Shard, zeros
 
 #IMPORTANT: While the code itself may not be written as optimally as possible, the algorithms are
 
@@ -366,9 +366,10 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             elif boundary == "PEC":
                 if solution == 2:
                     grid_size += 1
-                    EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
                     if distributed:
-                        EH['solving']['Ex'] = distribute_tensor(EH['solving']['Ex'], device_mesh=device_mesh, placements = [Shard(0)])
+                        zeros((grid_size - 1, grid_size, grid_size), device_mesh = device_mesh, dtype = precision)
+                    else:
+                        EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
                     EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
                     if distributed:
                         EH['solving']['Hz'] = distribute_tensor(EH['solving']['Hz'], device_mesh=device_mesh, placements = [Shard(2)])
