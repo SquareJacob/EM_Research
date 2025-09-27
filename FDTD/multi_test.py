@@ -426,11 +426,6 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 EH['solving']['Ez'][-1, :, :] = 0
                 EH['solving']['Ez'][:, 0, :] = 0
                 EH['solving']['Ez'][:, -1, :] = 0
-            
-
-            if not npy:
-                del X, Y, Z
-                torch.cuda.empty_cache()
 
             if simulation_type == 1:
                 for d in order:
