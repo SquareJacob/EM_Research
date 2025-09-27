@@ -57,7 +57,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 rank = int(os.environ["RANK"])
                 torch.cuda.set_device(rank)
                 if original_call:
-                    dist.init_process_group(backend = "nccl", rank = rank, world_size = world_size)
+                    dist.init_process_group(backend = "nccl", rank = rank, world_size = world_size, device_id = rank)
                 print(f"DEVICE:cuda{rank} with {torch.cuda.mem_get_info()[1] / (1024 ** 3)} GB")
                 device_mesh = init_device_mesh("cuda", (world_size,))
             else:
@@ -369,36 +369,37 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     grid_size += 1
                     if not npy:
                         y = torch.from_numpy(x).to(device)
-                        z = y[1::2]
+                        z1 = y[1::2]
+                        z2 = y[::2]
                         if distributed:
-                            z = torch.chunk(z, world_size)
-                            z = z[rank]
+                            z1 = torch.chunk(z1, world_size)[rank]
+                            z2 = torch.chunk(z2, world_size)[rank]
                         #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
-                        EH['solving']['Hy'] = torch.zeros((grid_size - 1, grid_size, len(z)), device = device, dtype = precision)
-                        EH['solving']['Ey'] = torch.zeros((grid_size, len(z), grid_size), device = device, dtype = precision)
+                        EH['solving']['Hy'] = torch.zeros((len(z1), grid_size, grid_size - 1), device = device, dtype = precision)
+                        EH['solving']['Ey'] = torch.zeros((len(z2), grid_size - 1, grid_size), device = device, dtype = precision)
                         #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
                         for i in range(1, max(p) + 1):
-                            EH['solving']['Hy'] += np.sqrt(eps/mu) * 2 * torch.cos(np.pi * min(i, p[0]) * (y[1::2, None, None] + np.sqrt(3) * c * t / 2)) * torch.cos(np.pi * i * (y[None, ::2, None] + np.sqrt(3) * c * t / 2)) * torch.cos(np.pi * min(i, p[1]) * (z[None, None, :] + np.sqrt(3) * c * t / 2))
-                            EH['solving']['Ey'] += np.sqrt(eps/mu) * 2 * torch.cos(np.pi * min(i, p[0]) * y[::2, None, None]) * torch.cos(np.pi * i * z[None, :, None]) * torch.cos(np.pi * min(i, p[1]) * y[None, None, ::2])
+                            EH['solving']['Hy'] += np.sqrt(eps/mu) * 2 * torch.cos(np.pi * min(i, p[0]) * (z1[:, None, None] + np.sqrt(3) * c * t / 2)) * torch.cos(np.pi * i * (y[None, ::2, None] + np.sqrt(3) * c * t / 2)) * torch.cos(np.pi * min(i, p[1]) * (y[None, None, 1::2] + np.sqrt(3) * c * t / 2))
+                            EH['solving']['Ey'] += np.sqrt(eps/mu) * 2 * torch.cos(np.pi * min(i, p[0]) * z2[:, None, None]) * torch.cos(np.pi * i * y[None, 1::2, None]) * torch.cos(np.pi * min(i, p[1]) * y[None, None, ::2])
                             dist.barrier()
                             torch.cuda.empty_cache()
                             #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
                         if distributed:
-                            EH['solving']['Hy'] = DTensor.from_local(EH['solving']['Hy'], device_mesh, [Shard(2)])
-                            EH['solving']['Ey'] = DTensor.from_local(EH['solving']['Ey'], device_mesh, [Shard(1)])
+                            EH['solving']['Hy'] = DTensor.from_local(EH['solving']['Hy'], device_mesh, [Shard(0)])
+                            EH['solving']['Ey'] = DTensor.from_local(EH['solving']['Ey'], device_mesh, [Shard(0)])
                             #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
                     else:
                         EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (x[1::2, None, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (x[None, ::2, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (x[None, None, 1::2] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
                         EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * x[::2, None, None]) * np.cos(np.pi * i * x[None, 1::2, None]) * np.cos(np.pi * min(i, p[1]) * x[None, None, ::2]) for i in range(1, max(p) + 1)])
                     if distributed:
                         EH['solving']['Ex'] = zeros((grid_size - 1, grid_size, grid_size), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
-                        if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
+                        #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
                         EH['solving']['Hz'] = zeros((grid_size - 1, grid_size - 1, grid_size), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
-                        if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
-                        EH['solving']['Ez'] = zeros((grid_size, grid_size, grid_size - 1), device_mesh = device_mesh, dtype = precision, placements = [Shard(2)])
-                        if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
-                        EH['solving']['Hx'] = zeros((grid_size, grid_size - 1, grid_size - 1), device_mesh = device_mesh, dtype = precision, placements = [Shard(1)])
-                        if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
+                        #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
+                        EH['solving']['Ez'] = zeros((grid_size, grid_size, grid_size - 1), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
+                        #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
+                        EH['solving']['Hx'] = zeros((grid_size, grid_size - 1, grid_size - 1), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
+                        #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
                     else:
                         EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
                         EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
