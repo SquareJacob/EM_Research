@@ -376,7 +376,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         EH['solving']['Ey'] = torch.zeros((grid_size, len(z), grid_size), device = device, dtype = precision)
                         for i in range(1, max(p) + 1):
                             EH['solving']['Hy'] += np.sqrt(eps/mu) * 2 * torch.cos(np.pi * min(i, p[0]) * (y[1::2, None, None] + np.sqrt(3) * c * t / 2)) * torch.cos(np.pi * i * (y[None, ::2, None] + np.sqrt(3) * c * t / 2)) * torch.cos(np.pi * min(i, p[1]) * (z[None, None, :] + np.sqrt(3) * c * t / 2))
-                            EH['solving']['Ey'] += np.sqrt(eps/mu) * 2 * torch.cos(np.pi * min(i, p[0]) * y[::2, None, None]) * torch.cos(np.pi * i * z[None, :, None]) * np.cos(np.pi * min(i, p[1]) * y[None, None, ::2])
+                            EH['solving']['Ey'] += np.sqrt(eps/mu) * 2 * torch.cos(np.pi * min(i, p[0]) * y[::2, None, None]) * torch.cos(np.pi * i * z[None, :, None]) * torch.cos(np.pi * min(i, p[1]) * y[None, None, ::2])
                             torch.cuda.empty_cache()
                         if distributed:
                             EH['solving']['Hy'] = DTensor.from_local(EH['solving']['Hy'], device_mesh, [Shard(2)])
