@@ -5,7 +5,7 @@ import json
 import os
 from typing import Literal, Tuple, Union
 import torch.distributed as dist
-from torch.distributed.tensor import distribute_tensor, init_device_mesh, Shard, zeros
+from torch.distributed.tensor import distribute_tensor, init_device_mesh, Shard, zeros, DTensor
 
 #IMPORTANT: While the code itself may not be written as optimally as possible, the algorithms are
 
@@ -366,25 +366,25 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             elif boundary == "PEC":
                 if solution == 2:
                     grid_size += 1
-                    print("reaching big", flush = True)
-                    EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (x[1::2, None, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (x[None, ::2, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (x[None, None, 1::2] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
-                    print(EH['solving']['Hy'].shape, EH['solving']['Hy'].nbytes / (1024 ** 3), flush = True)
-                    EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * x[::2, None, None]) * np.cos(np.pi * i * x[None, 1::2, None]) * np.cos(np.pi * min(i, p[1]) * x[None, None, ::2]) for i in range(1, max(p) + 1)])
-                    print("after big", flush = True)
                     if not npy:
-                        EH['solving']['Hy'] = torch.from_numpy(EH['solving']['Hy']).to(device)
+                        y = torch.from_numpy(x).to("device")
+                        z = y[1::2]
                         if distributed:
-                            EH['solving']['Hy'] = distribute_tensor(EH['solving']['Hy'], device_mesh=device_mesh, placements = [Shard(1)])
-                        torch.cuda.empty_cache()
-                        EH['solving']['Ey'] = torch.from_numpy(EH['solving']['Ey']).to(device)
+                            z = torch.chunk(z, world_size)
+                            z = z[rank]
+                        EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * torch.cos(np.pi * min(i, p[0]) * (y[1::2, None, None] + np.sqrt(3) * c * t / 2)) * torch.cos(np.pi * i * (y[None, ::2, None] + np.sqrt(3) * c * t / 2)) * torch.cos(np.pi * min(i, p[1]) * (z[None, None, :] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
+                        EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * torch.cos(np.pi * min(i, p[0]) * y[::2, None, None]) * torch.cos(np.pi * i * z[None, :, None]) * np.cos(np.pi * min(i, p[1]) * y[None, None, ::2]) for i in range(1, max(p) + 1)])
                         if distributed:
-                            EH['solving']['Ey'] = distribute_tensor(EH['solving']['Ey'], device_mesh=device_mesh, placements = [Shard(1)])
-                        torch.cuda.empty_cache()
+                            EH['solving']['Hy'] = DTensor.from_local(EH['solving']['Hy'], device_mesh, [Shard(2)])
+                            EH['solving']['Ey'] = DTensor.from_local(EH['solving']['Ey'], device_mesh, [Shard(1)])
+                    else:
+                        EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (x[1::2, None, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (x[None, ::2, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (x[None, None, 1::2] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
+                        EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * x[::2, None, None]) * np.cos(np.pi * i * x[None, 1::2, None]) * np.cos(np.pi * min(i, p[1]) * x[None, None, ::2]) for i in range(1, max(p) + 1)])
                     if distributed:
                         EH['solving']['Ex'] = zeros((grid_size - 1, grid_size, grid_size), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
-                        EH['solving']['Hz'] = zeros((grid_size - 1, grid_size - 1, grid_size), device_mesh = device_mesh, dtype = precision, placements = [Shard(2)])
+                        EH['solving']['Hz'] = zeros((grid_size - 1, grid_size - 1, grid_size), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
                         EH['solving']['Ez'] = zeros((grid_size, grid_size, grid_size - 1), device_mesh = device_mesh, dtype = precision, placements = [Shard(2)])
-                        EH['solving']['Hx'] = zeros((grid_size, grid_size - 1, grid_size - 1), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
+                        EH['solving']['Hx'] = zeros((grid_size, grid_size - 1, grid_size - 1), device_mesh = device_mesh, dtype = precision, placements = [Shard(1)])
                     else:
                         EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
                         EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
