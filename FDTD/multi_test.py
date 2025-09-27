@@ -88,29 +88,29 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             if boundary == "PEC": 
                 if solution == 1:
                     def solved(x, y, z, t, d, g):
-                        s = np.zeros_like(x)
+                        s = torch.zeros_like(x * y * z)
                         match d:
                             case 'Ex':
                                 for i in range(1, n + 1):
-                                    s += np.cos(np.pi * i * x) * np.sin(np.pi * i * y) * np.sin(np.pi * i * z) * np.cos(np.pi * np.sqrt(3) * c * t * i)
+                                    s += torch.cos(np.pi * i * x) * torch.sin(np.pi * i * y) * torch.sin(np.pi * i * z) * np.cos(np.pi * np.sqrt(3) * c * t * i)
                                 return s
                             case 'Ey':
                                 for i in range(1, n + 1):
-                                    s -= np.sin(np.pi * i * x) * np.cos(np.pi * i * y) * np.sin(np.pi * i * z) * np.cos(np.pi * np.sqrt(3) * c * t * i)
+                                    s -= torch.sin(np.pi * i * x) * torch.cos(np.pi * i * y) * torch.sin(np.pi * i * z) * np.cos(np.pi * np.sqrt(3) * c * t * i)
                                 return s / 2
                             case 'Ez':
                                 for i in range(1, n + 1):
-                                    s -= np.sin(np.pi * i * x) * np.sin(np.pi * i * y) * np.cos(np.pi * i * z) * np.cos(np.pi * np.sqrt(3) * c * t * i)
+                                    s -= torch.sin(np.pi * i * x) * torch.sin(np.pi * i * y) * torch.cos(np.pi * i * z) * np.cos(np.pi * np.sqrt(3) * c * t * i)
                                 return s / 2
                             case 'Hx':
                                 return s
                             case 'Hy':
                                 for i in range(1, n + 1):
-                                    s -= np.cos(np.pi * i * x) * np.sin(np.pi * i * y) * np.cos(np.pi * i * z) * np.sin(np.pi * np.sqrt(3) * c * t * i)
+                                    s -= torch.cos(np.pi * i * x) * torch.sin(np.pi * i * y) * torch.cos(np.pi * i * z) * np.sin(np.pi * np.sqrt(3) * c * t * i)
                                 return np.sqrt(3 * eps / (4 * mu)).item() * s
                             case 'Hz':
                                 for i in range(1, n + 1):
-                                    s += np.cos(np.pi * i * x) * np.cos(np.pi * i * y) * np.sin(np.pi * i * z) * np.sin(np.pi * np.sqrt(3) * c * t * i)
+                                    s += torch.cos(np.pi * i * x) * torch.cos(np.pi * i * y) * torch.sin(np.pi * i * z) * np.sin(np.pi * np.sqrt(3) * c * t * i)
                                 return np.sqrt(3 * eps / (4 * mu)).item() * s
                         return s
                 elif solution == 4:
@@ -346,17 +346,21 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             else:
                 print(f'Solver for {ending} with {"numpy" if npy else "torch"}', flush = True)
                 simulation_type = 0
-                   
-            X, Y, Z = np.meshgrid(x, x, x, indexing = 'ij')
+
+            if npy:   
+                X, Y, Z = np.meshgrid(x, x, x, indexing = 'ij')
+            else:
+                y = torch.tensor(x, device = device, dtype = precision)
         
             #Create Tensors; Assume appropriate yee cell for both H at each half integer timestep and E at each integer timestep
             if analytic:
                 if npy:
                     for d in order:
-                        EH['solving'][d] = EH['solver'][d](X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t)
+                        EH['solving'][d] = EH['solver'][d](X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t, grid_size)
                 else:
                     for d in order:
-                        EH['solving'][d] = torch.tensor(EH['solver'][d](X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t, grid_size), device = device, dtype = precision)
+                        #EH['solving'][d] = torch.tensor(EH['solver'][d](X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t, grid_size), device = device, dtype = precision)
+                        EH['solving'][d] = EH['solver'][d](y[ixer[d][0], None, None], y[None, ixer[d][1], None], y[None, None, ixer[d][2]], yee[d][3] * t, grid_size)
             elif boundary == "PEC":
                 if solution == 2:
                     grid_size += 1
