@@ -4,7 +4,7 @@
 #SBATCH --time=5:00
 #SBATCH --mail-type=ALL
 #SBATCH --ntasks-per-node=1
-#SBATCH --gpus-per-node=4
+#SBATCH --mem=128G
 
 source activate trains
-torchrun --nproc_per_node=4 osc_test.py
+python osc_test.py

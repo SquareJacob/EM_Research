@@ -519,12 +519,20 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         EH['solving']['Ey'] += eps1 * (hcurl('Hx', 2) - hcurl('Hz', 0))
                         EH['solving']['Ez'] += eps1 * (hcurl('Hy', 0) - hcurl('Hx', 1))
                     elif boundary == "PEC":
-                        EH['solving']['Hx'] += mu1 * (EH['solving']['Ez'][:, 1:, :] - EH['solving']['Ez'][:, :-1, :] - EH['solving']['Ey'][:, :, 1:] + EH['solving']['Ey'][:, :, :-1])
-                        EH['solving']['Hy'] += mu1 * (EH['solving']['Ex'][:, :, 1:] - EH['solving']['Ex'][:, :, :-1] - EH['solving']['Ez'][1:, :, :] + EH['solving']['Ez'][:-1, :, :])
-                        EH['solving']['Hz'] += mu1 * (EH['solving']['Ey'][1:, :, :] - EH['solving']['Ey'][:-1, :, :] - EH['solving']['Ex'][:, 1:, :] + EH['solving']['Ex'][:, :-1, :])
-                        EH['solving']['Ex'][:, 1:-1, 1:-1] += eps1 * (EH['solving']['Hz'][:, 1:, 1:-1] - EH['solving']['Hz'][:, :-1, 1:-1] - EH['solving']['Hy'][:, 1:-1, 1:] + EH['solving']['Hy'][:, 1:-1, :-1])
-                        EH['solving']['Ey'][1:-1, :, 1:-1] += eps1 * (EH['solving']['Hx'][1:-1, :, 1:] - EH['solving']['Hx'][1:-1, :, :-1] - EH['solving']['Hz'][1:, :, 1:-1] + EH['solving']['Hz'][:-1, :, 1:-1])
-                        EH['solving']['Ez'][1:-1, 1:-1, :] += eps1 * (EH['solving']['Hy'][1:, 1:-1, :] - EH['solving']['Hy'][:-1, 1:-1, :] - EH['solving']['Hx'][1:-1, 1:, :] + EH['solving']['Hx'][1:-1, :-1, :])
+                        if distributed:
+                            EH['solving']['Hx'] += mu1 * (EH['solving']['Ez'][:, 1:, :] - EH['solving']['Ez'][:, :-1, :] - EH['solving']['Ey'][:, :, 1:] + EH['solving']['Ey'][:, :, :-1])
+                            EH['solving']['Hy'] += mu1 * (EH['solving']['Ex'][:, :, 1:] - EH['solving']['Ex'][:, :, :-1] - EH['solving']['Ez'][:, :, :] + EH['solving']['Ez'][:-1, :, :])
+                            EH['solving']['Hz'] += mu1 * (EH['solving']['Ey'][1:, :, :] - EH['solving']['Ey'][:-1, :, :] - EH['solving']['Ex'][:, 1:, :] + EH['solving']['Ex'][:, :-1, :])
+                            EH['solving']['Ex'][:, 1:-1, 1:-1] += eps1 * (EH['solving']['Hz'][:, 1:, 1:-1] - EH['solving']['Hz'][:, :-1, 1:-1] - EH['solving']['Hy'][:, 1:-1, 1:] + EH['solving']['Hy'][:, 1:-1, :-1])
+                            EH['solving']['Ey'][1:-1, :, 1:-1] += eps1 * (EH['solving']['Hx'][1:-1, :, 1:] - EH['solving']['Hx'][1:-1, :, :-1] - EH['solving']['Hz'][1:, :, 1:-1] + EH['solving']['Hz'][:-1, :, 1:-1])
+                            EH['solving']['Ez'][1:-1, 1:-1, :] += eps1 * (EH['solving']['Hy'][1:, 1:-1, :] - EH['solving']['Hy'][:-1, 1:-1, :] - EH['solving']['Hx'][1:-1, 1:, :] + EH['solving']['Hx'][1:-1, :-1, :])
+                        else:
+                            EH['solving']['Hx'] += mu1 * (EH['solving']['Ez'][:, 1:, :] - EH['solving']['Ez'][:, :-1, :] - EH['solving']['Ey'][:, :, 1:] + EH['solving']['Ey'][:, :, :-1])
+                            EH['solving']['Hy'] += mu1 * (EH['solving']['Ex'][:, :, 1:] - EH['solving']['Ex'][:, :, :-1] - EH['solving']['Ez'][1:, :, :] + EH['solving']['Ez'][:-1, :, :])
+                            EH['solving']['Hz'] += mu1 * (EH['solving']['Ey'][1:, :, :] - EH['solving']['Ey'][:-1, :, :] - EH['solving']['Ex'][:, 1:, :] + EH['solving']['Ex'][:, :-1, :])
+                            EH['solving']['Ex'][:, 1:-1, 1:-1] += eps1 * (EH['solving']['Hz'][:, 1:, 1:-1] - EH['solving']['Hz'][:, :-1, 1:-1] - EH['solving']['Hy'][:, 1:-1, 1:] + EH['solving']['Hy'][:, 1:-1, :-1])
+                            EH['solving']['Ey'][1:-1, :, 1:-1] += eps1 * (EH['solving']['Hx'][1:-1, :, 1:] - EH['solving']['Hx'][1:-1, :, :-1] - EH['solving']['Hz'][1:, :, 1:-1] + EH['solving']['Hz'][:-1, :, 1:-1])
+                            EH['solving']['Ez'][1:-1, 1:-1, :] += eps1 * (EH['solving']['Hy'][1:, 1:-1, :] - EH['solving']['Hy'][:-1, 1:-1, :] - EH['solving']['Hx'][1:-1, 1:, :] + EH['solving']['Hx'][1:-1, :-1, :])
                         #print([torch.linalg.norm(EH['solving'][d]).item() for d in order])
                     if device == 'cuda':
                         events[1].record()
