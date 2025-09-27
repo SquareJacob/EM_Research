@@ -754,7 +754,7 @@ class torchTT():
     @staticmethod
     def build(A: torch.Tensor, eps: float, caps: list[int] = None) -> list[torch.Tensor]:
         dims = A.shape
-        delta = eps / np.sqrt(len(dims) - 1)
+        delta = eps * torch.linalg.norm(A).item() / np.sqrt(len(dims) - 1).item()
         G = []
         r = [1] * (len(dims) + 1)
         C = A
@@ -764,16 +764,8 @@ class torchTT():
                 del U, S, V
             U, S, V = torch.linalg.svd(C, full_matrices= False)
             #https://github.com/oseledets/TT-Toolbox/blob/master/core/my_chop2.m
-            s = torch.linalg.norm(S)
-            if s == 0:
-                r1 = 1
-            elif eps == 0:
-                r1 = len(S)
-            else:
-                ep = delta * s
-                C = torch.cumsum(S.square().flip(0), dim=0)
-                r1 = C.numel() - torch.searchsorted(C, ep * ep, right=False)
-                del C
+            C = torch.cumsum(S.square().flip(0), dim=0)
+            r1 = C.numel() - torch.searchsorted(C, delta * delta, right=False)
             if caps:
                 r1 =  min(r1, caps[i])
             r[i + 1] = r1
@@ -845,7 +837,6 @@ class torchTT():
             torchTT.events['round'].append(e)
         else:
             torchTT.times['round'] -= time.time()
-        delta = eps / np.sqrt(len(A) - 1)
         dims = A.dims()
         rmax = np.prod(dims).item()
         if A.orthogonal:
