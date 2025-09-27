@@ -8,4 +8,4 @@
 #SBATCH --gpus-per-node=1
 
 source activate trains
-torchrun --nproc_per_node=4 script.py
+python script.py

@@ -4,12 +4,10 @@ import matplotlib.pyplot as plt
 import json
 import os
 from typing import Literal, Tuple, Union
-import torch.distributed as dist
-from torch.distributed.tensor import distribute_tensor, init_device_mesh, Shard, zeros, DTensor
 
 #IMPORTANT: While the code itself may not be written as optimally as possible, the algorithms are
 
-def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, sizes: Tuple[int], npy: bool, simulations: list[dict], param = None, eps: float = 8.854e-12, mu: float = np.pi * 4e-7, device: Literal['cpu', 'cuda'] = 'cuda', solver: bool = False, ignore_error: bool = False, original_call : bool = True):
+def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, sizes: Tuple[int], npy: bool, simulations: list[dict], param = None, eps: float = 8.854e-12, mu: float = np.pi * 4e-7, device: Literal['cpu', 'cuda'] = 'cuda', solver: bool = False, ignore_error: bool = False):
     #Initial setup
     c = 1/np.sqrt(mu * eps).item()
     if len(sizes) > 2:
@@ -37,7 +35,6 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
     EHk = ['solving', 'solver', 'solved']
     EH = {k: {} for k in EHk}
     ixer = {k: tuple(slice(yee[k][i], None, 2) for i in range(3)) for k in order} #indexing when using half-spaced grid
-    distributed = False
     if npy:
         from Tensor_Train.TT import TT
         from numpy import roll
@@ -50,18 +47,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         torch.backends.cuda.matmul.allow_tf32 = True
         pre2 = np.float64
         device = device if torch.cuda.is_available() else "cpu"
-        if device == "cuda":
-            world_size = int(os.environ["WORLD_SIZE"])
-            if world_size > 1:
-                distributed = True
-                rank = int(os.environ["RANK"])
-                torch.cuda.set_device(rank)
-                if original_call:
-                    dist.init_process_group(backend = "nccl", rank = rank, world_size = world_size, device_id = rank)
-                print(f"DEVICE:cuda{rank} with {torch.cuda.mem_get_info()[1] / (1024 ** 3)} GB")
-                device_mesh = init_device_mesh("cuda", (world_size,))
-            else:
-                print(f"DEVICE:{device} with {torch.cuda.mem_get_info()[1] / (1024 ** 3)} GB", flush = True)
+        print(f"DEVICE:{device}", flush = True)
     precision = torch.float64
     TT.roundInPlus = False
     TT.oldRound = False
@@ -86,10 +72,9 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             analytic = False
             ending += f'-{p}'
     if not analytic and not os.path.isdir(ending) and not solver and not ignore_error:
-        multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True, True, False)
+        multi_test(boundary, solution, iters, sizes, npy, simulations, param, eps, mu, device, True)
     if not solver:
-        if not distributed or rank == 0:
-            print(f'Simulation for: {ending} with {"numpy" if npy else "torch"}', flush = True)
+        print(f'Simulation for: {ending} with {"numpy" if npy else "torch"}', flush = True)
         if not analytic: #Approximate non-analytic solutions using pre-solved solution using interpolation
             if not ignore_error:
                 if boundary == 'PEC':
@@ -340,21 +325,18 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 else:
                     group = False
                 if simulation_type == 0:
-                    if not distributed or rank == 0:
-                        print('Basic simulation', flush = True)
+                    print('Basic simulation', flush = True)
                     if grid_size == sizes[0]:
                         info['sims'].append('basic')
                 else:
-                    if not distributed or rank == 0:
-                        print(f'Error {error}, {f"group round with zero {zero_thres}" if group else "groupless"}', flush = True)
+                    print(f'Error {error}, {f"group round with zero {zero_thres}" if group else "groupless"}', flush = True)
                     if grid_size == sizes[0]:
                         info['sims'].append(f'{error}-{zero_thres}')
             else:
-                if not distributed or rank == 0:
-                    print(f'Solver for {ending} with {"numpy" if npy else "torch"}', flush = True)
+                print(f'Solver for {ending} with {"numpy" if npy else "torch"}', flush = True)
                 simulation_type = 0
                    
-            #X, Y, Z = np.meshgrid(x, x, x, indexing = 'ij')
+            X, Y, Z = np.meshgrid(x, x, x, indexing = 'ij')
         
             #Create Tensors; Assume appropriate yee cell for both H at each half integer timestep and E at each integer timestep
             if analytic:
@@ -367,44 +349,15 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             elif boundary == "PEC":
                 if solution == 2:
                     grid_size += 1
+                    EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
+                    EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
+                    EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (X[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (Y[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (Z[1::2, ::2, 1::2] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
+                    EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (X[::2, 1::2, ::2])) * np.cos(np.pi * i * (Y[::2, 1::2, ::2])) * np.cos(np.pi * min(i, p[1]) * (Z[::2, 1::2, ::2])) for i in range(1, max(p) + 1)])
                     if not npy:
-                        y = torch.from_numpy(x).to(device)
-                        z1 = y[1::2]
-                        z2 = y[::2]
-                        if distributed:
-                            z1 = torch.chunk(z1, world_size)[rank]
-                            z2 = torch.chunk(z2, world_size)[rank]
-                        #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
-                        EH['solving']['Hy'] = torch.zeros((len(z1), grid_size, grid_size - 1), device = device, dtype = precision)
-                        EH['solving']['Ey'] = torch.zeros((len(z2), grid_size - 1, grid_size), device = device, dtype = precision)
-                        #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
-                        for i in range(1, max(p) + 1):
-                            EH['solving']['Hy'] += np.sqrt(eps/mu) * 2 * torch.cos(np.pi * min(i, p[0]) * (z1[:, None, None] + np.sqrt(3) * c * t / 2)) * torch.cos(np.pi * i * (y[None, ::2, None] + np.sqrt(3) * c * t / 2)) * torch.cos(np.pi * min(i, p[1]) * (y[None, None, 1::2] + np.sqrt(3) * c * t / 2))
-                            EH['solving']['Ey'] += np.sqrt(eps/mu) * 2 * torch.cos(np.pi * min(i, p[0]) * z2[:, None, None]) * torch.cos(np.pi * i * y[None, 1::2, None]) * torch.cos(np.pi * min(i, p[1]) * y[None, None, ::2])
-                            dist.barrier()
-                            torch.cuda.empty_cache()
-                            #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
-                        if distributed:
-                            EH['solving']['Hy'] = DTensor.from_local(EH['solving']['Hy'], device_mesh, [Shard(0)])
-                            EH['solving']['Ey'] = DTensor.from_local(EH['solving']['Ey'], device_mesh, [Shard(0)])
-                            #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
-                    else:
-                        EH['solving']['Hy'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * (x[1::2, None, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * i * (x[None, ::2, None] + np.sqrt(3) * c * t / 2)) * np.cos(np.pi * min(i, p[1]) * (x[None, None, 1::2] + np.sqrt(3) * c * t / 2)) for i in range(1, max(p) + 1)])
-                        EH['solving']['Ey'] = sum([np.sqrt(eps/mu) * 2 * np.cos(np.pi * min(i, p[0]) * x[::2, None, None]) * np.cos(np.pi * i * x[None, 1::2, None]) * np.cos(np.pi * min(i, p[1]) * x[None, None, ::2]) for i in range(1, max(p) + 1)])
-                    if distributed:
-                        EH['solving']['Ex'] = zeros((grid_size - 1, grid_size, grid_size), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
-                        #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
-                        EH['solving']['Hz'] = zeros((grid_size - 1, grid_size - 1, grid_size), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
-                        #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
-                        EH['solving']['Ez'] = zeros((grid_size, grid_size, grid_size - 1), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
-                        #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
-                        EH['solving']['Hx'] = zeros((grid_size, grid_size - 1, grid_size - 1), device_mesh = device_mesh, dtype = precision, placements = [Shard(0)])
-                        #if rank == 0: print(torch.cuda.memory.memory_summary(), flush = True)
-                    else:
-                        EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
-                        EH['solving']['Hz'] = torch.zeros((grid_size - 1, grid_size - 1, grid_size), device = device, dtype = precision)
-                        EH['solving']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
-                        EH['solving']['Hx'] = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
+                        EH['solving']['Hy'] = torch.tensor(EH['solving']['Hy'], device = device, dtype = precision)
+                        EH['solving']['Ey'] = torch.tensor(EH['solving']['Ey'], device = device, dtype = precision)
+                    EH['solving']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
+                    EH['solving']['Hx'] = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
                     grid_size -= 1
                 elif solution == 3:
                     EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
@@ -446,40 +399,23 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         if not npy:
                             EH['solving'][d] = torch.tensor(EH['solving'][d], device = device, dtype = precision)
             if boundary == "PEC":
-                if distributed:
-                    Ex = EH['solving']['Ex'].to_local()
-                    Ex[:, :, 0].zero_()
-                    Ex[:, :, -1].zero_()
-                    Ex[:, 0, :].zero_()
-                    Ex[:, -1, :].zero_()
-                    Ey = EH['solving']['Ey'].to_local()
-                    Ey[:, :, 0].zero_()
-                    Ey[:, :, -1].zero_()
-                    if rank == 0:
-                        Ey[0, :, :].zero_()
-                    if rank == world_size - 1:
-                        Ey[-1, :, :].zero_()
-                    Ez = EH['solving']['Ez'].to_local()
-                    if rank == 0:
-                        Ez[0, :, :].zero_()
-                    if rank == world_size - 1:
-                        Ez[-1, :, :].zero_()
-                    Ez[:, 0, :].zero_()
-                    Ez[:, -1, :].zero_()
-                    print(rank, Ex.shape, Ey.shape, Ez.shape, flush = True)
-                else:
-                    EH['solving']['Ex'][:, :, 0] = 0
-                    EH['solving']['Ex'][:, :, -1] = 0
-                    EH['solving']['Ex'][:, 0, :] = 0
-                    EH['solving']['Ex'][:, -1, :] = 0
-                    EH['solving']['Ey'][:, :, 0] = 0
-                    EH['solving']['Ey'][:, :, -1] = 0
-                    EH['solving']['Ey'][0, :, :] = 0
-                    EH['solving']['Ey'][-1, :, :] = 0
-                    EH['solving']['Ez'][0, :, :] = 0
-                    EH['solving']['Ez'][-1, :, :] = 0
-                    EH['solving']['Ez'][:, 0, :] = 0
-                    EH['solving']['Ez'][:, -1, :] = 0
+                EH['solving']['Ex'][:, :, 0] = 0
+                EH['solving']['Ex'][:, :, -1] = 0
+                EH['solving']['Ex'][:, 0, :] = 0
+                EH['solving']['Ex'][:, -1, :] = 0
+                EH['solving']['Ey'][:, :, 0] = 0
+                EH['solving']['Ey'][:, :, -1] = 0
+                EH['solving']['Ey'][0, :, :] = 0
+                EH['solving']['Ey'][-1, :, :] = 0
+                EH['solving']['Ez'][0, :, :] = 0
+                EH['solving']['Ez'][-1, :, :] = 0
+                EH['solving']['Ez'][:, 0, :] = 0
+                EH['solving']['Ez'][:, -1, :] = 0
+            
+
+            if not npy:
+                del X, Y, Z
+                torch.cuda.empty_cache()
 
             if simulation_type == 1:
                 for d in order:
@@ -504,8 +440,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             #The actual simulation update loop
             for i in range(grid_size * iters):
                 if i % (iters) == 0:
-                    if not distributed or rank == 0:
-                        print(f'{round(i / iters)}/{grid_size}', flush = True)
+                    print(f'{round(i / iters)}/{grid_size}', flush = True)
                 if simulation_type == 0:
                     if device == 'cuda':
                         events[0].record()
@@ -519,20 +454,12 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         EH['solving']['Ey'] += eps1 * (hcurl('Hx', 2) - hcurl('Hz', 0))
                         EH['solving']['Ez'] += eps1 * (hcurl('Hy', 0) - hcurl('Hx', 1))
                     elif boundary == "PEC":
-                        if distributed:
-                            EH['solving']['Hx'] += mu1 * (EH['solving']['Ez'][:, 1:, :] - EH['solving']['Ez'][:, :-1, :] - EH['solving']['Ey'][:, :, 1:] + EH['solving']['Ey'][:, :, :-1])
-                            EH['solving']['Hy'] += mu1 * (EH['solving']['Ex'][:, :, 1:] - EH['solving']['Ex'][:, :, :-1] - EH['solving']['Ez'][:, :, :] + EH['solving']['Ez'][:-1, :, :])
-                            EH['solving']['Hz'] += mu1 * (EH['solving']['Ey'][1:, :, :] - EH['solving']['Ey'][:-1, :, :] - EH['solving']['Ex'][:, 1:, :] + EH['solving']['Ex'][:, :-1, :])
-                            EH['solving']['Ex'][:, 1:-1, 1:-1] += eps1 * (EH['solving']['Hz'][:, 1:, 1:-1] - EH['solving']['Hz'][:, :-1, 1:-1] - EH['solving']['Hy'][:, 1:-1, 1:] + EH['solving']['Hy'][:, 1:-1, :-1])
-                            EH['solving']['Ey'][1:-1, :, 1:-1] += eps1 * (EH['solving']['Hx'][1:-1, :, 1:] - EH['solving']['Hx'][1:-1, :, :-1] - EH['solving']['Hz'][1:, :, 1:-1] + EH['solving']['Hz'][:-1, :, 1:-1])
-                            EH['solving']['Ez'][1:-1, 1:-1, :] += eps1 * (EH['solving']['Hy'][1:, 1:-1, :] - EH['solving']['Hy'][:-1, 1:-1, :] - EH['solving']['Hx'][1:-1, 1:, :] + EH['solving']['Hx'][1:-1, :-1, :])
-                        else:
-                            EH['solving']['Hx'] += mu1 * (EH['solving']['Ez'][:, 1:, :] - EH['solving']['Ez'][:, :-1, :] - EH['solving']['Ey'][:, :, 1:] + EH['solving']['Ey'][:, :, :-1])
-                            EH['solving']['Hy'] += mu1 * (EH['solving']['Ex'][:, :, 1:] - EH['solving']['Ex'][:, :, :-1] - EH['solving']['Ez'][1:, :, :] + EH['solving']['Ez'][:-1, :, :])
-                            EH['solving']['Hz'] += mu1 * (EH['solving']['Ey'][1:, :, :] - EH['solving']['Ey'][:-1, :, :] - EH['solving']['Ex'][:, 1:, :] + EH['solving']['Ex'][:, :-1, :])
-                            EH['solving']['Ex'][:, 1:-1, 1:-1] += eps1 * (EH['solving']['Hz'][:, 1:, 1:-1] - EH['solving']['Hz'][:, :-1, 1:-1] - EH['solving']['Hy'][:, 1:-1, 1:] + EH['solving']['Hy'][:, 1:-1, :-1])
-                            EH['solving']['Ey'][1:-1, :, 1:-1] += eps1 * (EH['solving']['Hx'][1:-1, :, 1:] - EH['solving']['Hx'][1:-1, :, :-1] - EH['solving']['Hz'][1:, :, 1:-1] + EH['solving']['Hz'][:-1, :, 1:-1])
-                            EH['solving']['Ez'][1:-1, 1:-1, :] += eps1 * (EH['solving']['Hy'][1:, 1:-1, :] - EH['solving']['Hy'][:-1, 1:-1, :] - EH['solving']['Hx'][1:-1, 1:, :] + EH['solving']['Hx'][1:-1, :-1, :])
+                        EH['solving']['Hx'] += mu1 * (EH['solving']['Ez'][:, 1:, :] - EH['solving']['Ez'][:, :-1, :] - EH['solving']['Ey'][:, :, 1:] + EH['solving']['Ey'][:, :, :-1])
+                        EH['solving']['Hy'] += mu1 * (EH['solving']['Ex'][:, :, 1:] - EH['solving']['Ex'][:, :, :-1] - EH['solving']['Ez'][1:, :, :] + EH['solving']['Ez'][:-1, :, :])
+                        EH['solving']['Hz'] += mu1 * (EH['solving']['Ey'][1:, :, :] - EH['solving']['Ey'][:-1, :, :] - EH['solving']['Ex'][:, 1:, :] + EH['solving']['Ex'][:, :-1, :])
+                        EH['solving']['Ex'][:, 1:-1, 1:-1] += eps1 * (EH['solving']['Hz'][:, 1:, 1:-1] - EH['solving']['Hz'][:, :-1, 1:-1] - EH['solving']['Hy'][:, 1:-1, 1:] + EH['solving']['Hy'][:, 1:-1, :-1])
+                        EH['solving']['Ey'][1:-1, :, 1:-1] += eps1 * (EH['solving']['Hx'][1:-1, :, 1:] - EH['solving']['Hx'][1:-1, :, :-1] - EH['solving']['Hz'][1:, :, 1:-1] + EH['solving']['Hz'][:-1, :, 1:-1])
+                        EH['solving']['Ez'][1:-1, 1:-1, :] += eps1 * (EH['solving']['Hy'][1:, 1:-1, :] - EH['solving']['Hy'][:-1, 1:-1, :] - EH['solving']['Hx'][1:-1, 1:, :] + EH['solving']['Hx'][1:-1, :-1, :])
                         #print([torch.linalg.norm(EH['solving'][d]).item() for d in order])
                     if device == 'cuda':
                         events[1].record()
@@ -599,19 +526,12 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                                 TT.times[key] += TT.events[key][j].elapsed_time(TT.events[key][j + 1]) / 1000
                             TT.events[key] = []
             #After simulation; data fetching
-            if distributed:
-                dist.barrier()
             if solver:
                 os.makedirs(ending, exist_ok = True)
                 for d in order:
-                    if distributed:
-                        np.save(os.path.join(ending, d), EH['solving'][d].full_tensor().cpu().numpy())
-                    else:
-                        np.save(os.path.join(ending, d), EH['solving'][d].cpu().numpy())
+                    np.save(os.path.join(ending, d), EH['solving'][d].cpu().numpy())
                     del EH['solving'][d]
                 del x
-                if distributed:
-                    dist.barrier()
                 torch.cuda.empty_cache()
                 break
             if not analytic:
@@ -641,10 +561,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     info['rank2'][-1][-1].append(lranks[i][1])
             if not npy:
                 for d in order:
-                    if distributed:
-                        EH['solving'][d] = EH['solving'][d].full_tensor().cpu().numpy()
-                    else:
-                        EH['solving'][d] = EH['solving'][d].cpu().numpy()
+                    EH['solving'][d] = EH['solving'][d].cpu().numpy()
             if not ignore_error or analytic:
                 info['errors'][-1].append(
                     np.sqrt(
@@ -669,6 +586,3 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             json.dump(info, f)
         if solver:
             break
-    if distributed and original_call:
-        dist.barrier()
-        dist.destroy_process_group()    
