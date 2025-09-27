@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=one_comparison
 #SBATCH --account=PAS0061
-#SBATCH --time=3:00
+#SBATCH --time=30:00
 #SBATCH --mail-type=ALL
 #SBATCH --ntasks-per-node=1
-#SBATCH --mem=256G
+#SBATCH --mem=64G
 #SBATCH --gpus-per-node=1
 
 source activate trains
