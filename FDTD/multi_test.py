@@ -55,7 +55,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             if world_size > 1:
                 distributed = True
                 if original_call:
-                    dist.init_process_group(backend = "nccl")
+                    dist.init_process_group(backend = "nccl", device_id = f"cuda:{rank}")
                 rank = int(os.environ["RANK"])
                 print(f"DEVICE:cuda{rank} with {torch.cuda.mem_get_info()[1] / (1024 ** 3)} GB")
                 device_mesh = init_device_mesh("cuda", (world_size,))
