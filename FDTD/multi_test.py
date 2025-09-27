@@ -367,7 +367,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 if solution == 2:
                     grid_size += 1
                     if not npy:
-                        y = torch.from_numpy(x).to("device")
+                        y = torch.from_numpy(x).to(device)
                         z = y[1::2]
                         if distributed:
                             z = torch.chunk(z, world_size)
