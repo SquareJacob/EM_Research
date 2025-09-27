@@ -406,7 +406,6 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         EH['solving']['Ez'] = torch.zeros((grid_size, grid_size, grid_size - 1), device = device, dtype = precision)
                         EH['solving']['Hx'] = torch.zeros((grid_size, grid_size - 1, grid_size - 1), device = device, dtype = precision)
                     grid_size -= 1
-                    print("Finished initializing", flush = True)
                 elif solution == 3:
                     EH['solving']['Ex'] = torch.zeros((grid_size - 1, grid_size, grid_size), device = device, dtype = precision)
                     EH['solving']['Hy'] = torch.zeros((grid_size - 1, grid_size, grid_size - 1), device = device, dtype = precision)
@@ -448,7 +447,6 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                             EH['solving'][d] = torch.tensor(EH['solving'][d], device = device, dtype = precision)
             if boundary == "PEC":
                 if distributed:
-                    print("starting to zero", flush = True)
                     Ex = EH['solving']['Ex'].to_local()
                     Ex[:, :, 0].zero_()
                     Ex[:, :, -1].zero_()
@@ -457,14 +455,18 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     Ey = EH['solving']['Ey'].to_local()
                     Ey[:, :, 0].zero_()
                     Ey[:, :, -1].zero_()
-                    Ey[0, :, :].zero_()
-                    Ey[-1, :, :].zero_()
+                    if rank == 0:
+                        Ey[0, :, :].zero_()
+                    if rank == world_size - 1:
+                        Ey[-1, :, :].zero_()
                     Ez = EH['solving']['Ez'].to_local()
-                    Ez[0, :, :].zero_()
-                    Ez[-1, :, :].zero_()
+                    if rank == 0:
+                        Ez[0, :, :].zero_()
+                    if rank == world_size - 1:
+                        Ez[-1, :, :].zero_()
                     Ez[:, 0, :].zero_()
                     Ez[:, -1, :].zero_()
-                    print("finished zero", flush = True)
+                    print(rank, Ex.shape, Ey.shape, Ez.shape, flush = True)
                 else:
                     EH['solving']['Ex'][:, :, 0] = 0
                     EH['solving']['Ex'][:, :, -1] = 0
