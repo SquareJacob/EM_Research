@@ -1,9 +1,14 @@
 \frac{\partial H}{\partial t}=-\frac{1}\mu(\nabla\times E)\\
 \frac{\partial E}{\partial t}=\frac{1}\epsilon(\nabla\times H)\\
 \\
-E=(\sum_{i=1}^{m}\sin(i\pi y)\sin(i\pi z)\cos(i\pi\sqrt{\frac{2}{\mu\epsilon}}t), 0, 0)\\
-H=(0,-\sqrt{\frac{\epsilon}{2\mu}}\sum_{i=1}^{m}\sin(i\pi y)\cos(i\pi z)\sin(i\pi\sqrt{\frac{2}{\mu\epsilon}}t),\sqrt{\frac{\epsilon}{2\mu}}\sum_{i=1}^{m}\cos(i\pi y)\sin(i\pi z)\sin(i\pi\sqrt{\frac{2}{\mu\epsilon}}t))\\
-\frac{\partial H}{\partial t}=(0,-\sum_{i=1}^{m}\frac{i\pi}{\mu}\sin(i\pi y)\cos(i\pi z)\cos(i\pi\sqrt{\frac{2}{\mu\epsilon}}t),\sum_{i=1}^{m}\frac{i\pi}{\mu}\cos(i\pi y)\sin(i\pi z)\cos(i\pi\sqrt{\frac{2}{\mu\epsilon}}t))\\
-\nabla\times E=(0,\sum_{i=1}^{m}i\pi\sin(i\pi y)\cos(i\pi z)\cos(i\pi\sqrt{\frac{2}{\mu\epsilon}}t),-\sum_{i=1}^{m}i\pi\cos(i\pi y)\sin(i\pi z)\cos(i\pi\sqrt{\frac{2}{\mu\epsilon}}t))\\
-\frac{\partial E}{\partial t}=(-\sum_{i=1}^{m}i\pi\sqrt{\frac{2}{\mu\epsilon}}\sin(i\pi y)\sin(i\pi z)\sin(i\pi\sqrt{\frac{2}{\mu\epsilon}}t), 0, 0)\\
-\nabla\times H=(-\sum_{i=1}^{m}i\pi\sqrt{\frac{2\epsilon}{\mu}}\sin(i\pi y)\sin(i\pi z)\sin(i\pi\sqrt{\frac{2}{\mu\epsilon}}t),0,0)
+E=(\sum_{i=1}^{m}\cos(i\pi x)\sin(i\pi y)\sin(i\pi z)\cos(i\pi\sqrt{\frac{3}{\mu\epsilon}}t), -\frac12\sum_{i=1}^{m}\sin(i\pi x)\cos(i\pi y)\sin(i\pi z)\cos(i\pi\sqrt{\frac{3}{\mu\epsilon}}t),-\frac12\sum_{i=1}^{m}\sin(i\pi x)\sin(i\pi y)\cos(i\pi z)\cos(i\pi\sqrt{\frac{3}{\mu\epsilon}}t))\\
+
+H=(0,-\sqrt{\frac{3\epsilon}{4\mu}}\sum_{i=1}^{m}\cos(i\pi x)\sin(i\pi y)\cos(i\pi z)\sin(i\pi\sqrt{\frac{3}{\mu\epsilon}}t),\sqrt{\frac{3\epsilon}{4\mu}}\sum_{i=1}^{m}\cos(i\pi x)\cos(i\pi y)\sin(i\pi z)\sin(i\pi\sqrt{\frac{3}{\mu\epsilon}}t))\\
+
+\frac{\partial H}{\partial t}=(0,-\sum_{i=1}^{m}\frac{3i\pi}{2\mu}\cos(i\pi x)\sin(i\pi y)\cos(i\pi z)\cos(i\pi\sqrt{\frac{3}{\mu\epsilon}}t),\sum_{i=1}^{m}\frac{3i\pi}{2\mu}\cos(i\pi x)\cos(i\pi y)\sin(i\pi z)\cos(i\pi\sqrt{\frac{3}{\mu\epsilon}}t))\\
+
+\nabla\times E=(0,\sum_{i=1}^{m}\frac{3i\pi}{2}\cos(i\pi x)\sin(i\pi y)\cos(i\pi z)\cos(i\pi\sqrt{\frac{3}{\mu\epsilon}}t),-\sum_{i=1}^{m}\frac{3i\pi}{2}\cos(i\pi x)\cos(i\pi y)\sin(i\pi z)\cos(i\pi\sqrt{\frac{3}{\mu\epsilon}}t))\\
+
+\frac{\partial E}{\partial t}=(-\sqrt{\frac{3}{\mu\epsilon}}\sum_{i=1}^{m}i\pi\cos(i\pi x)\sin(i\pi y)\sin(i\pi z)\sin(i\pi\sqrt{\frac{3}{\mu\epsilon}}t), \sqrt{\frac{3}{4\mu\epsilon}}\sum_{i=1}^{m}i\pi\sin(i\pi x)\cos(i\pi y)\sin(i\pi z)\sin(i\pi\sqrt{\frac{3}{\mu\epsilon}}t), \sqrt{\frac{3}{4\mu\epsilon}}\sum_{i=1}^{m}i\pi\sin(i\pi x)\sin(i\pi y)\cos(i\pi z)\sin(i\pi\sqrt{\frac{3}{\mu\epsilon}}t))\\
+
+\nabla\times H=(-\sqrt{\frac{3\epsilon}{\mu}}\sum_{i=1}^{m}i\pi\cos(i\pi x)\sin(i\pi y)\sin(i\pi z)\sin(i\pi\sqrt{\frac{3}{\mu\epsilon}}t),\sqrt{\frac{3\epsilon}{4\mu}}\sum_{i=1}^{m}i\pi\sin(i\pi x)\cos(i\pi y)\sin(i\pi z)\sin(i\pi\sqrt{\frac{3}{\mu\epsilon}}t),\sqrt{\frac{3\epsilon}{4\mu}}\sum_{i=1}^{m}i\pi\sin(i\pi x)\sin(i\pi y)\cos(i\pi z)\sin(i\pi\sqrt{\frac{3}{\mu\epsilon}}t))

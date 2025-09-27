@@ -92,15 +92,26 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         match d:
                             case 'Ex':
                                 for i in range(1, n + 1):
-                                    s += np.sin(np.pi * i * y) * np.sin(np.pi * i * z) * np.cos(np.pi * np.sqrt(2) * c * t * i)
+                                    s += np.cos(np.pi * i * x) * np.sin(np.pi * i * y) * np.sin(np.pi * i * z) * np.cos(np.pi * np.sqrt(3) * c * t * i)
+                                return s
+                            case 'Ey':
+                                for i in range(1, n + 1):
+                                    s -= np.sin(np.pi * i * x) * np.cos(np.pi * i * y) * np.sin(np.pi * i * z) * np.cos(np.pi * np.sqrt(3) * c * t * i)
+                                return s / 2
+                            case 'Ez':
+                                for i in range(1, n + 1):
+                                    s -= np.sin(np.pi * i * x) * np.sin(np.pi * i * y) * np.cos(np.pi * i * z) * np.cos(np.pi * np.sqrt(3) * c * t * i)
+                                return s / 2
+                            case 'Hx':
+                                return s
                             case 'Hy':
                                 for i in range(1, n + 1):
-                                    s -= np.sin(np.pi * i * y) * np.cos(np.pi * i * z) * np.sin(np.pi * np.sqrt(2) * c * t * i)
-                                return np.sqrt(eps / (2 * mu)).item() * s
+                                    s -= np.cos(np.pi * i * x) * np.sin(np.pi * i * y) * np.cos(np.pi * i * z) * np.sin(np.pi * np.sqrt(3) * c * t * i)
+                                return np.sqrt(3 * eps / (4 * mu)).item() * s
                             case 'Hz':
                                 for i in range(1, n + 1):
-                                    s += np.cos(np.pi * i * y) * np.sin(np.pi * i * z) * np.sin(np.pi * np.sqrt(2) * c * t * i)
-                                return np.sqrt(eps / (2 * mu)).item() * s
+                                    s += np.cos(np.pi * i * x) * np.cos(np.pi * i * y) * np.sin(np.pi * i * z) * np.sin(np.pi * np.sqrt(3) * c * t * i)
+                                return np.sqrt(3 * eps / (4 * mu)).item() * s
                         return s
                 elif solution == 4:
                     def solved(x, y, z, t, d, g):
@@ -296,7 +307,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             cell_size = 1 / (grid_size)
         elif boundary == "Periodic":
             cell_size = 1 / grid_size
-        #t = 1 / grid_size / c / np.sqrt(2).item() / 4 #Accounts for Courant limit
+        #t = 1 / grid_size / c / np.sqrt(3).item() * 0.9330127
         t = 1 / grid_size / c / np.sqrt(3).item()
         #Reused constants
         eps1 = t / eps / cell_size
