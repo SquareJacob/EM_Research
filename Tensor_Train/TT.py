@@ -91,7 +91,7 @@ class TT():
         #How this works is explained in dot.txt
         def norm(self, rank_split: int = None, dtype = None, orthogonal: bool = False) -> Union[float, np.ndarray]:
             """
-            Takes the Frobenium norm of the tensor.\\
+            Takes the Frobenius norm of the tensor.\\
             If rank_split is given, then returns a vector whose length equals the rank, with each entry giving the norm using only the corresponding part of that rank.
             """
             TT.times['norm'] -= time.time()
@@ -246,7 +246,7 @@ class TT():
     @staticmethod
     def round(A: TTarray, eps: float, caps: list[int] = None) -> TTarray:
         """
-        TT-rounding on TT tensor A to error resthold eps, with optional maximum output ranks given by caps.
+        TT-rounding on TT tensor A to error threshold eps, with optional maximum output ranks given by caps.
         """
         if TT.oldRound:
             return TT.round1(A, eps, caps)
@@ -486,7 +486,7 @@ class TT():
 
         :param A: Tensor to use for summing
         :param dim: dimension to choose slices along
-        :param indices: Specifies what to choose for each adding stewp, using same notation as reduce
+        :param indices: Specifies what to choose for each adding step, using same notation as reduce
         :param scalars: The scaler in each adding step
         :param norm: How to calculate norm, if calculated. 0 is forward, 1 is backwards
         """
@@ -635,7 +635,7 @@ class torchTT():
         #How this works is explained in dot.txt
         def norm(self, rank_split: int = None, dtype = None, orthogonal: bool = False) -> Union[float, torch.Tensor]:
             """
-            Takes the Frobenium norm of the tensor.\\
+            Takes the Frobenius norm of the tensor.\\
             If rank_split is given, then returns a vector whose length equals the rank, with each entry giving the norm using only the corresponding part of that rank.
             """
             gpu = self[0].is_cuda
@@ -760,10 +760,13 @@ class torchTT():
         C = A
         for i in range(len(dims) - 1):
             C = C.reshape(r[i] * dims[i], -1)
+            print(C.device, flush = True)
             C, R = torch.linalg.qr(C, 'reduced')
+            print(R.device, flush = True)
             U, S, V = torch.linalg.svd(R, full_matrices= False)
             #https://github.com/oseledets/TT-Toolbox/blob/master/core/my_chop2.m
             D = torch.cumsum(S.square().flip(0), dim=0)
+            print(D.device, flush = True)
             r1 = D.numel() - torch.searchsorted(D, delta * delta, right=False)
             if caps:
                 r1 =  min(r1, caps[i])
@@ -822,7 +825,7 @@ class torchTT():
     @staticmethod
     def round(A: TTarray, eps: float, caps: list[int] = None) -> TTarray:
         """
-        TT-rounding on TT tensor A to error resthold eps, with optional maximum output ranks given by caps.
+        TT-rounding on TT tensor A to error threshold eps, with optional maximum output ranks given by caps.
         """
         if eps >= 1:
             return torchTT.zero_like(A)
@@ -1238,7 +1241,7 @@ class torchTT():
 
         :param A: Tensor to use for summing
         :param dim: dimension to choose slices along
-        :indices: Specifies what to choose for each adding stewp, using same notation as reduce
+        :indices: Specifies what to choose for each adding step, using same notation as reduce
         :scalars: The scaler in each adding step
         """
         B = A.deepcopy()
