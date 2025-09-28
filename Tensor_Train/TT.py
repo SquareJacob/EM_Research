@@ -760,13 +760,13 @@ class torchTT():
         C = A
         for i in range(len(dims) - 1):
             C = C.reshape(r[i] * dims[i], -1)
-            print(C.device, flush = True)
             C, R = torch.linalg.qr(C, 'reduced')
-            print(R.device, flush = True)
-            U, S, V = torch.linalg.svd(R, full_matrices= False)
+            U, S, V = torch.linalg.svd(R.to("cpu"), full_matrices= False)
+            U = U.to(A.device)
+            S = S.to(A.device)
+            V = V.to(A.device)
             #https://github.com/oseledets/TT-Toolbox/blob/master/core/my_chop2.m
             D = torch.cumsum(S.square().flip(0), dim=0)
-            print(D.device, flush = True)
             r1 = D.numel() - torch.searchsorted(D, delta * delta, right=False)
             if caps:
                 r1 =  min(r1, caps[i])
