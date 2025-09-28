@@ -552,9 +552,13 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     for d in order:
                         EH['solved'][d] = EH['solver'][d](np.stack(np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'), axis = -1))
             else:
-                for d in order:
-                    EH['solved'][d] = EH['solver'][d](*np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'), (iters * grid_size + yee[d][3]) * t, grid_size)
-                    #print((iters * grid_size + yee[d][3]) * t * c * 2 * np.pi)
+                if npy:
+                    for d in order:
+                        EH['solved'][d] = EH['solver'][d](*np.meshgrid(*(gu[ixer[d][i]] for i in range(3)), indexing = 'ij'), (iters * grid_size + yee[d][3]) * t, grid_size)
+                else:
+                    y = torch.tensor(gu, device = device, dtype = precision)
+                    for d in order:
+                        EH['solved'][d] = EH['solver'][d](y[ixer[d][0], None, None], y[None, ixer[d][1], None], y[None, None, ixer[d][2]], (iters * grid_size + yee[d][3]) * t, grid_size).cpu().numpy()
             info['times'][-1].append(timing)
             info['rank1'][-1].append([])
             info['rank2'][-1].append([])
