@@ -760,19 +760,18 @@ class torchTT():
         C = A
         for i in range(len(dims) - 1):
             C = C.reshape(r[i] * dims[i], -1)
-            if i:
-                del U, S, V
-            U, S, V = torch.linalg.svd(C, full_matrices= False)
+            C, R = torch.linalg.qr(C, 'reduced')
+            U, S, V = torch.linalg.svd(R, full_matrices= False)
             #https://github.com/oseledets/TT-Toolbox/blob/master/core/my_chop2.m
-            C = torch.cumsum(S.square().flip(0), dim=0)
-            r1 = C.numel() - torch.searchsorted(C, delta * delta, right=False)
+            D = torch.cumsum(S.square().flip(0), dim=0)
+            r1 = D.numel() - torch.searchsorted(D, delta * delta, right=False)
             if caps:
                 r1 =  min(r1, caps[i])
             r[i + 1] = r1
-            G.append(U[:, 0:r[i + 1]].reshape(r[i], dims[i], r[i + 1]))
+            G.append((C @ U[:, 0:r[i + 1]]).reshape(r[i], dims[i], r[i + 1]))
             C = S[0:r[i + 1]][:, None] * V[0:r[i + 1], :]
         G.append((S[0:r[-2]][:, None] * V[0:r[-2], :]).reshape(r[-2], dims[-1], r[-1]))
-        del U, S, V
+        torch.cuda.empty_cache
         return G
 
    #See dot.txt in explanations for how this works     
