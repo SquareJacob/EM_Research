@@ -771,7 +771,6 @@ class torchTT():
             G.append((C @ U[:, 0:r[i + 1]]).reshape(r[i], dims[i], r[i + 1]))
             C = S[0:r[i + 1]][:, None] * V[0:r[i + 1], :]
         G.append((S[0:r[-2]][:, None] * V[0:r[-2], :]).reshape(r[-2], dims[-1], r[-1]))
-        torch.cuda.empty_cache
         return G
 
    #See dot.txt in explanations for how this works     

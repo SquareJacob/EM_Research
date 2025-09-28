@@ -431,6 +431,8 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 for d in order:
                     print(d, flush = True)
                     EH['solving'][d] = TT.TTarray(EH['solving'][d], error)
+                if not npy:
+                    torch.cuda.empty_cache()
                 lranks = [EH['solving'][d].ranks()[1:3] for d in order]
                 size = sum([EH['solving'][d].nbytes() for d in order])                
 
