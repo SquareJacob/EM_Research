@@ -204,24 +204,24 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         match d:
                             case 'Ex':
                                 for i in range(1, n + 1):
-                                    s += torch.sin(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.sin(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
+                                    s += torch.sin(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.sin(2 * np.pi * i * c * np.sqrt(2) * t)
                             case 'Ey':
                                 for i in range(1, n + 1):
-                                    s -= torch.cos(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.cos(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
+                                    s -= torch.cos(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.cos(2 * np.pi * i * c * np.sqrt(2) * t)
                             case 'Ez':
                                 for i in range(1, n + 1):
-                                    s += torch.sin(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.cos(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
+                                    s += torch.sin(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.cos(2 * np.pi * i * c * np.sqrt(2) * t)
                             case 'Hx':
                                 for i in range(1, n + 1):
-                                    s -= torch.cos(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.sin(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
+                                    s -= torch.cos(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.sin(2 * np.pi * i * c * np.sqrt(2) * t)
                                 return np.sqrt(2 * eps / mu).item() * s
                             case 'Hy':
                                 for i in range(1, n + 1):
-                                    s += torch.sin(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.cos(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
+                                    s += torch.sin(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.cos(2 * np.pi * i * c * np.sqrt(2) * t)
                                 return np.sqrt(eps / mu / 2).item() * s
                             case 'Hz':
                                 for i in range(1, n + 1):
-                                    s -= torch.cos(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.cos(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
+                                    s -= torch.cos(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.cos(2 * np.pi * i * c * np.sqrt(2) * t)
                                 return np.sqrt(eps / mu / 2).item() * s
                         return s
                 elif solution == 4:
@@ -230,24 +230,24 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         match d:
                             case 'Ex':
                                 for i in range(1, n + 1):
-                                    s += torch.sin(2 * np.pi * i * x) * torch.cos(2 * np.pi * i * y) * np.sin(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
+                                    s += torch.sin(2 * np.pi * i * x) * torch.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * i * c * np.sqrt(2) * t)
                             case 'Ey':
                                 for i in range(1, n + 1):
-                                    s -= torch.cos(2 * np.pi * i * x) * torch.sin(2 * np.pi * i * y) * np.sin(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
+                                    s -= torch.cos(2 * np.pi * i * x) * torch.sin(2 * np.pi * i * y) * np.sin(2 * np.pi * i * c * np.sqrt(2) * t)
                             case 'Ez':
                                 for i in range(1, n + 1):
-                                    s += torch.sin(2 * np.pi * i * x) * torch.sin(2 * np.pi * i * y) * np.cos(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
+                                    s += torch.sin(2 * np.pi * i * x) * torch.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * i * c * np.sqrt(2) * t)
                             case 'Hx':
                                 for i in range(1, n + 1):
-                                    s -= torch.sin(2 * np.pi * i * x) * torch.cos(2 * np.pi * i * y) * np.sin(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
+                                    s -= torch.sin(2 * np.pi * i * x) * torch.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * i * c * np.sqrt(2) * t)
                                 return np.sqrt(eps / mu / 2).item() * s
                             case 'Hy':
                                 for i in range(1, n + 1):
-                                    s += torch.cos(2 * np.pi * i * x) * torch.sin(2 * np.pi * i * y) * np.sin(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
+                                    s += torch.cos(2 * np.pi * i * x) * torch.sin(2 * np.pi * i * y) * np.sin(2 * np.pi * i * c * np.sqrt(2) * t)
                                 return np.sqrt(eps / mu / 2).item() * s
                             case 'Hz':
                                 for i in range(1, n + 1):
-                                    s += torch.sin(2 * np.pi * i * x) * torch.sin(2 * np.pi * i * y) * np.cos(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
+                                    s += torch.sin(2 * np.pi * i * x) * torch.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * i * c * np.sqrt(2) * t)
                                 return np.sqrt(2 * eps / mu).item() * s
                         return s
                 elif solution == 5:
@@ -492,7 +492,9 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                                 EH['solving']['Ex'], EH['solving']['Ey'], EH['solving']['Ez'] = TT.group_round((EH['solving']['Ex'], EH['solving']['Ey'], EH['solving']['Ez']), error, zero_thres)
                             else:
                                for d in 'Ex,Ey,Ez'.split(','):
-                                    EH['solving'][d] = EH['solving'][d].round() 
+                                    EH['solving'][d] = EH['solving'][d].round()
+                        for d in order:
+                            print([T.dtype for T in EH['solving'][d]]) 
                     if device == 'cuda':
                         events[1].record()
                     else:           
