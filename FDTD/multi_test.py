@@ -313,7 +313,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         elif boundary == "Periodic":
             cell_size = 1 / grid_size
         #t = 1 / grid_size / c / np.sqrt(3).item() * 0.9330127
-        t = 0.9 / grid_size / c / np.sqrt(3).item()
+        t = 1 / grid_size / c / np.sqrt(3).item()
         #Reused constants
         eps1 = t / eps / cell_size
         mu1 = -t / mu / cell_size
