@@ -200,28 +200,28 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                                 return -np.sqrt(3 * eps / mu).item() / 2  * np.cos(2 * np.pi * np.cos(2 * np.pi * (x + y - z - np.sqrt(3) * c * t)))
                 elif solution == 3:
                     def solved(x, y, z, t, d, g, dt):
-                        s = np.zeros_like(x)
+                        s = torch.zeros_like(x * y * z)
                         match d:
                             case 'Ex':
                                 for i in range(1, n + 1):
-                                    s += np.sin(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s += torch.sin(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
                             case 'Ey':
                                 for i in range(1, n + 1):
-                                    s -= np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s -= torch.cos(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
                             case 'Ez':
                                 for i in range(1, n + 1):
-                                    s += np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s += torch.sin(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
                             case 'Hx':
                                 for i in range(1, n + 1):
-                                    s -= np.cos(2 * np.pi * i * y) * np.cos(2 * np.pi * i * z) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s -= torch.cos(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
                                 return np.sqrt(2 * eps / mu).item() * s
                             case 'Hy':
                                 for i in range(1, n + 1):
-                                    s += np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s += torch.sin(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
                                 return np.sqrt(eps / mu / 2).item() * s
                             case 'Hz':
                                 for i in range(1, n + 1):
-                                    s -= np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s -= torch.cos(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
                                 return np.sqrt(eps / mu / 2).item() * s
                         return s
                 elif solution == 4:
