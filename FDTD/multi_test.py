@@ -445,7 +445,6 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         EH['solving']['Ex'][:, 1:-1, 1:-1] += eps1 * (EH['solving']['Hz'][:, 1:, 1:-1] - EH['solving']['Hz'][:, :-1, 1:-1] - EH['solving']['Hy'][:, 1:-1, 1:] + EH['solving']['Hy'][:, 1:-1, :-1])
                         EH['solving']['Ey'][1:-1, :, 1:-1] += eps1 * (EH['solving']['Hx'][1:-1, :, 1:] - EH['solving']['Hx'][1:-1, :, :-1] - EH['solving']['Hz'][1:, :, 1:-1] + EH['solving']['Hz'][:-1, :, 1:-1])
                         EH['solving']['Ez'][1:-1, 1:-1, :] += eps1 * (EH['solving']['Hy'][1:, 1:-1, :] - EH['solving']['Hy'][:-1, 1:-1, :] - EH['solving']['Hx'][1:-1, 1:, :] + EH['solving']['Hx'][1:-1, :-1, :])
-                        #print([torch.linalg.norm(EH['solving'][d]).item() for d in order])
                     if device == 'cuda':
                         events[1].record()
                     else:           
@@ -493,8 +492,6 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                             else:
                                for d in 'Ex,Ey,Ez'.split(','):
                                     EH['solving'][d] = EH['solving'][d].round()
-                        for d in order:
-                            print([T.dtype for T in EH['solving'][d]]) 
                     if device == 'cuda':
                         events[1].record()
                     else:           
@@ -570,10 +567,10 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         )
                     )
                 )
+            with open(f"{ending}.json", "w") as f:
+                json.dump(info, f)
             if not npy:
                 torch.cuda.empty_cache()
         grid_size *= 2
-        with open(f"{ending}.json", "w") as f:
-            json.dump(info, f)
         if solver:
             break

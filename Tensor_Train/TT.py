@@ -767,9 +767,12 @@ class torchTT():
             V = V.to(A.device)
             #https://github.com/oseledets/TT-Toolbox/blob/master/core/my_chop2.m
             D = torch.cumsum(S.square().flip(0), dim=0)
-            r1 = D.numel() - torch.searchsorted(D, delta * delta, right=False)
-            if caps:
-                r1 =  min(r1, caps[i])
+            if D[-1] == 0:
+                r1 = 1
+            else:
+                r1 = D.numel() - torch.searchsorted(D, delta * delta, right=False)
+                if caps:
+                    r1 =  min(r1, caps[i])
             r[i + 1] = r1
             G.append((C @ U[:, 0:r[i + 1]]).reshape(r[i], dims[i], r[i + 1]))
             C = S[0:r[i + 1]][:, None] * V[0:r[i + 1], :]
@@ -873,11 +876,14 @@ class torchTT():
                 torchTT.times['svd'] += time.time()
             #https://github.com/oseledets/TT-Toolbox/blob/master/core/my_chop2.m
             C = torch.cumsum(S.square().flip(0), dim=0)
-            r1 = C.numel() - torch.searchsorted(C, delta * delta, right=False)
+            if C[-1] == 0:
+                r1 = 1
+            else:
+                r1 = C.numel() - torch.searchsorted(C, delta * delta, right=False)
+                r1 = min(r1, rmax)
+                if caps:
+                    r1 =  min(r1, caps[i])
             del C
-            r1 = min(r1, rmax)
-            if caps:
-                r1 =  min(r1, caps[i])
             B[i] = (B[i] @ U[:, :r1]).reshape(-1, dims[i], r1)
             B[i + 1] = (S[:r1, None] * V[:r1, :]) @ B[i + 1].reshape(V.shape[1], -1)
         B[-1] = B[-1].reshape(-1, dims[-1], 1)
