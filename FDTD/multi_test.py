@@ -204,24 +204,24 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         match d:
                             case 'Ex':
                                 for i in range(1, n + 1):
-                                    s += torch.sin(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s += torch.sin(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.sin(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
                             case 'Ey':
                                 for i in range(1, n + 1):
-                                    s -= torch.cos(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s -= torch.cos(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.cos(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
                             case 'Ez':
                                 for i in range(1, n + 1):
-                                    s += torch.sin(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s += torch.sin(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.cos(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
                             case 'Hx':
                                 for i in range(1, n + 1):
-                                    s -= torch.cos(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s -= torch.cos(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.sin(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
                                 return np.sqrt(2 * eps / mu).item() * s
                             case 'Hy':
                                 for i in range(1, n + 1):
-                                    s += torch.sin(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s += torch.sin(2 * np.pi * i * y) * torch.cos(2 * np.pi * i * z) * np.cos(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
                                 return np.sqrt(eps / mu / 2).item() * s
                             case 'Hz':
                                 for i in range(1, n + 1):
-                                    s -= torch.cos(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s -= torch.cos(2 * np.pi * i * y) * torch.sin(2 * np.pi * i * z) * np.cos(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
                                 return np.sqrt(eps / mu / 2).item() * s
                         return s
                 elif solution == 4:
@@ -230,24 +230,24 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         match d:
                             case 'Ex':
                                 for i in range(1, n + 1):
-                                    s += np.sin(2 * np.pi * i * x) * np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s += np.sin(2 * np.pi * i * x) * np.cos(2 * np.pi * i * y) * np.sin(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
                             case 'Ey':
                                 for i in range(1, n + 1):
-                                    s -= np.cos(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s -= np.cos(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.sin(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
                             case 'Ez':
                                 for i in range(1, n + 1):
-                                    s += np.sin(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s += np.sin(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.cos(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
                             case 'Hx':
                                 for i in range(1, n + 1):
-                                    s -= np.sin(2 * np.pi * i * x) * np.cos(2 * np.pi * i * y) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s -= np.sin(2 * np.pi * i * x) * np.cos(2 * np.pi * i * y) * np.sin(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
                                 return np.sqrt(eps / mu / 2).item() * s
                             case 'Hy':
                                 for i in range(1, n + 1):
-                                    s += np.cos(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.sin(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s += np.cos(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.sin(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
                                 return np.sqrt(eps / mu / 2).item() * s
                             case 'Hz':
                                 for i in range(1, n + 1):
-                                    s += np.sin(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.cos(2 * np.pi * np.sqrt(2) * c * t * i)
+                                    s += np.sin(2 * np.pi * i * x) * np.sin(2 * np.pi * i * y) * np.cos(omega_num(0, 2 * np.pi * i, 2 * np.pi * i, 1 / g, dt) * t)
                                 return np.sqrt(2 * eps / mu).item() * s
                         return s
                 elif solution == 5:
@@ -313,7 +313,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         elif boundary == "Periodic":
             cell_size = 1 / grid_size
         #t = 1 / grid_size / c / np.sqrt(3).item() * 0.9330127
-        t = 1 / grid_size / c / np.sqrt(3).item()
+        t =  1 / grid_size / c / np.sqrt(2).item()
         #Reused constants
         eps1 = t / eps / cell_size
         mu1 = -t / mu / cell_size
