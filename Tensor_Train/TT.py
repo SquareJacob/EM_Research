@@ -573,7 +573,6 @@ class torchTT():
                 if torchTT.roundInPlus:
                     T = torchTT.add(self, other)
                     x = T.round()
-                    del T
                     return x
                 else:
                     return torchTT.add(self, other)
@@ -584,9 +583,7 @@ class torchTT():
             x = torchTT.add(self, other, epsFunc = torchTT.firstFunc, capsFunc = torchTT.firstFunc)
             if torchTT.roundInPlus:
                 y = x.round()
-                del x
                 x = y
-            del self
             self = x
             return self
             
@@ -605,7 +602,6 @@ class torchTT():
             
         def __imul__(self, other):
             x = other * self
-            del self
             self = x
             return self
         
@@ -614,7 +610,6 @@ class torchTT():
         
         def __isub__(self, other):
             x = self - other
-            del self
             self = x
             return self
             
@@ -883,7 +878,6 @@ class torchTT():
                 r1 = min(r1, rmax)
                 if caps:
                     r1 =  min(r1, caps[i])
-            del C
             B[i] = (B[i] @ U[:, :r1]).reshape(-1, dims[i], r1)
             B[i + 1] = (S[:r1, None] * V[:r1, :]) @ B[i + 1].reshape(V.shape[1], -1)
         B[-1] = B[-1].reshape(-1, dims[-1], 1)
@@ -941,13 +935,10 @@ class torchTT():
             nrm[i + 1] = torch.linalg.norm(R, "fro")
             if nrm[i + 1] != 0:
                 R /= nrm[i + 1].item()
-            del c1
             c1 = torch.matmul(R, A[i + 1].reshape(r[i + 1], n[i + 1] * r[i + 2]))
             r[i + 1] = c0.shape[1]
             B[i] = c0.clone()
             B[i + 1] = c1
-            if not torch.is_tensor(pre):
-               del c0, R 
         B[-1] = B[-1].reshape(r[-2], n[-1], r[-1])
         c1 = B[-1]
         for i in range(len(A) - 1, 0, -1):
@@ -971,7 +962,6 @@ class torchTT():
                 torchTT.events['svd'].append(e)
             else:
                 torchTT.times['svd'] += time.time()
-            del c1
             #https://github.com/oseledets/TT-Toolbox/blob/master/core/my_chop2.m
             s = torch.linalg.norm(S)
             if s == 0:
@@ -982,7 +972,6 @@ class torchTT():
                 ep = delta * s
                 C = torch.cumsum(S.square().flip(0), dim=0)
                 r1 = C.numel() - torch.searchsorted(C, ep * ep, right=False)
-                del C
             r1 = min(r1, rmax)
             if caps:
                 r1 =  min(r1, caps[i - 1])
@@ -993,14 +982,12 @@ class torchTT():
                 B[i] = V[:r1, :].reshape(r[i], n[i], r[i + 1]).clone()
             else:
                 B[i] = V[:r1, :].reshape(r[i], n[i], r[i + 1])
-                del U, S, V
         B[0] = c1
         nrm[0] = torch.linalg.norm(B[0], 'fro')
         if nrm[0] != 0:
             B[0] /= nrm[0]
         B[0] = B[0].reshape(r[0], n[0], r[1])
         nrm0 = torch.sum(torch.log(torch.abs(nrm)))
-        del nrm
         nrm0 = torch.exp(nrm0 / len(A))
         for i in range(len(A)):
             B[i] *= nrm0

@@ -403,8 +403,6 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
             if simulation_type == 1:
                 for d in order:
                     EH['solving'][d] = TT.TTarray(EH['solving'][d], error)
-                if not npy:
-                    torch.cuda.empty_cache()
                 lranks = [EH['solving'][d].ranks()[1:3] for d in order]
                 size = sum([EH['solving'][d].nbytes() for d in order])                
 
@@ -514,9 +512,6 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 os.makedirs(ending, exist_ok = True)
                 for d in order:
                     np.save(os.path.join(ending, d), EH['solving'][d].cpu().numpy())
-                    del EH['solving'][d]
-                del x
-                torch.cuda.empty_cache()
                 break
             if not analytic:
                 if not ignore_error:
@@ -569,8 +564,6 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 )
             with open(f"{ending}.json", "w") as f:
                 json.dump(info, f)
-            if not npy:
-                torch.cuda.empty_cache()
         grid_size *= 2
         if solver:
             break
