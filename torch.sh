@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=one_comparison
 #SBATCH --account=PAS0061
-#SBATCH --time=6:00:00
+#SBATCH --time=1:30:00
 #SBATCH --mail-type=ALL
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem=64G
