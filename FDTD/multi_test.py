@@ -280,15 +280,15 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     def solved(x, y, z, t, d, g, dt):
                         coefs = [] # fx,fy,fz,ft,ey,ez,hx,hy,hz
                         for i in range(1, max(p) + 1):
-                            fx = min(i, p[0])
+                            fx = i
                             fy = i
-                            fz = min(i, p[1])
-                            ft = -np.sqrt(fx ** 2 + fy ** 2 + fz ** 2) * c
-                            ey = -fx * np.sqrt(fy) / 2
-                            ez = (np.sqrt(fy) * fy - 2) * fx / (2 * fz)
-                            hx = (ey * fz - ez * fy) / (ft * mu)
-                            hy = (ez * fx - fz) / (ft * mu)
-                            hz = (fy - ey * fx) / (ft * mu)
+                            fz = -i
+                            ft = -np.sqrt(3) * c * i
+                            ey = -1/2
+                            ez = 1/2
+                            hx = 0
+                            hy = -np.sqrt(3 * eps / (4 * mu))
+                            hz = -np.sqrt(3 * eps / (4 * mu))
                             coefs.append([fx,fy,fz,ft,ey,ez,hx,hy,hz])
                         match d:
                             case 'Ex':
