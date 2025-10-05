@@ -290,19 +290,27 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                             hy = -np.sqrt(3 * eps / (4 * mu))
                             hz = -np.sqrt(3 * eps / (4 * mu))
                             coefs.append([fx,fy,fz,ft,ey,ez,hx,hy,hz])
+                        s = torch.zeros_like(x * y * z)
                         match d:
                             case 'Ex':
-                                return sum([torch.cos(2 * np.pi * torch.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                                for i in range(1, max(p) + 1):
+                                    s += torch.cos(2 * np.pi * torch.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t)))
                             case 'Ey':
-                                return sum([coefs[i - 1][4] * torch.cos(2 * np.pi * torch.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                                for i in range(1, max(p) + 1):
+                                    s += coefs[i - 1][4] * torch.cos(2 * np.pi * torch.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t)))
                             case 'Ez':
-                                return sum([coefs[i - 1][5] * torch.cos(2 * np.pi * torch.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                                for i in range(1, max(p) + 1):
+                                    s += coefs[i - 1][5] * torch.cos(2 * np.pi * torch.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t)))
                             case 'Hx':
-                                return sum([coefs[i - 1][6] * torch.cos(2 * np.pi * torch.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                                for i in range(1, max(p) + 1):
+                                    s += coefs[i - 1][6] * torch.cos(2 * np.pi * torch.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t)))
                             case 'Hy':
-                                return sum([coefs[i - 1][7] * torch.cos(2 * np.pi * torch.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                                for i in range(1, max(p) + 1):
+                                    s += coefs[i - 1][7] * torch.cos(2 * np.pi * torch.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t)))
                             case 'Hz':
-                                return sum([coefs[i - 1][8] * torch.cos(2 * np.pi * torch.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t))) for i in range(1, max(p) + 1)])
+                                for i in range(1, max(p) + 1):
+                                    s += coefs[i - 1][8] * torch.cos(2 * np.pi * torch.cos(2 * np.pi * (coefs[i - 1][0] * x + coefs[i - 1][1] * y + coefs[i - 1][2] * z + coefs[i - 1][3] * t)))
+                        return s
             for d in order:
                 EH['solver'][d] =lambda x,y,z,t,g,dt: solved(x,y,z,t,d,g,dt)
     info = {cat : [] for cat in 'sims,grids,times,round,svd,qr,add,norm,errors,sizes,rank1,rank2'.split(',')}
