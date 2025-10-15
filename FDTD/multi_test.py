@@ -7,15 +7,15 @@ from typing import Literal, Tuple, Union
 
 
 #IMPORTANT: While the code itself may not be written as optimally as possible, the algorithms are
-def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, sizes: Tuple[int], npy: bool, simulations: list[dict], param = None, eps: float = 8.854e-12, mu: float = np.pi * 4e-7, device: Literal['cpu', 'cuda'] = 'cuda', solver: bool = False, ignore_error: bool = False):
+def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, sizes: Tuple[int], npy: bool, simulations: list[dict], param = None, eps: float = 8.854e-12, mu: float = np.pi * 4e-7, device: Literal['cpu', 'cuda'] = 'cuda', solver: bool = False, ignore_error: bool = False, start_t = 0.0):
     #Initial setup
     c = 1/np.sqrt(mu * eps).item()
     def omega_num(fx, fy, fz, dx, dt):
         S = c * dt / dx
         s2 = np.sum([np.sin(np.array([fx, fy, fz]) * dx / 2) ** 2]).item()
         s = np.clip(S * np.sqrt(s2), 0, 1)
-        #return np.linalg.norm(np.array([fx, fy, fz])) * c
-        return 2 / dt * np.arcsin(s)
+        return np.linalg.norm(np.array([fx, fy, fz])) * c
+        #return 2 / dt * np.arcsin(s)
     if len(sizes) > 2:
         solver_size = sizes[2]
         end_size = sizes[1]
@@ -322,7 +322,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         elif boundary == "Periodic":
             cell_size = 1 / grid_size
         #t = 1 / grid_size / c / np.sqrt(3).item() * 0.9330127
-        t =  1 / grid_size / c / np.sqrt(3).item()
+        t =  0.0002 / grid_size / c / np.sqrt(3).item()
         #Reused constants
         eps1 = t / eps / cell_size
         mu1 = -t / mu / cell_size
@@ -374,7 +374,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 else:
                     for d in order:
                         #EH['solving'][d] = torch.tensor(EH['solver'][d](X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t, grid_size), device = device, dtype = precision)
-                        EH['solving'][d] = EH['solver'][d](y[ixer[d][0], None, None], y[None, ixer[d][1], None], y[None, None, ixer[d][2]], yee[d][3] * t, grid_size, t)
+                        EH['solving'][d] = EH['solver'][d](y[ixer[d][0], None, None], y[None, ixer[d][1], None], y[None, None, ixer[d][2]], yee[d][3] * t + start_t, grid_size, t)
             elif boundary == "PEC":
                 if solution == 2:
                     grid_size += 1
@@ -533,7 +533,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                 else:
                     y = torch.tensor(gu, device = device, dtype = precision)
                     for d in order:
-                        EH['solved'][d] = EH['solver'][d](y[ixer[d][0], None, None], y[None, ixer[d][1], None], y[None, None, ixer[d][2]], (iters * grid_size + yee[d][3]) * t, grid_size, t).cpu().numpy()
+                        EH['solved'][d] = EH['solver'][d](y[ixer[d][0], None, None], y[None, ixer[d][1], None], y[None, None, ixer[d][2]], (int(iters * grid_size) + yee[d][3]) * t + start_t, grid_size, t).cpu().numpy()
             info['times'][-1].append(timing)
             info['rank1'][-1].append([])
             info['rank2'][-1].append([])
