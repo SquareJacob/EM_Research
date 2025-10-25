@@ -443,12 +443,12 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     else:           
                         timing -= time.time()
                     if boundary == "Periodic":
-                        EH['solving']['Hx'] += mu1 * (ecurl('Ez', 1) - ecurl('Ey', 2))
-                        EH['solving']['Hy'] += mu1 * (ecurl('Ex', 2) - ecurl('Ez', 0))
-                        EH['solving']['Hz'] += mu1 * (ecurl('Ey', 0) - ecurl('Ex', 1))
-                        EH['solving']['Ex'] += eps1 * (hcurl('Hz', 1) - hcurl('Hy', 2))
-                        EH['solving']['Ey'] += eps1 * (hcurl('Hx', 2) - hcurl('Hz', 0))
-                        EH['solving']['Ez'] += eps1 * (hcurl('Hy', 0) - hcurl('Hx', 1))
+                        EH['solving']['Hx'] += mu1 * (roll(EH['solving']['Ez'], -1, 1) - EH['solving']['Ez'] - roll(EH['solving']['Ey'], -1, 2) + EH['solving']['Ey'])
+                        EH['solving']['Hy'] += mu1 * (roll(EH['solving']['Ex'], -1, 2) - EH['solving']['Ex'] - roll(EH['solving']['Ez'], -1, 0) + EH['solving']['Ez'])
+                        EH['solving']['Hz'] += mu1 * (roll(EH['solving']['Ey'], -1, 0) - EH['solving']['Ey'] - roll(EH['solving']['Ex'], -1, 1) + EH['solving']['Ex'])
+                        EH['solving']['Ex'] += eps1 * (EH['solving']['Hz'] - roll(EH['solving']['Hz'], 1, 1) - EH['solving']['Hy'] + roll(EH['solving']['Hy'], 1, 2))
+                        EH['solving']['Ey'] += eps1 * (EH['solving']['Hx'] - roll(EH['solving']['Hx'], 1, 2) - EH['solving']['Hz'] + roll(EH['solving']['Hz'], 1, 0))
+                        EH['solving']['Ez'] += eps1 * (EH['solving']['Hy'] - roll(EH['solving']['Hy'], 1, 0) - EH['solving']['Hx'] + roll(EH['solving']['Hx'], 1, 1))
                     elif boundary == "PEC":
                         EH['solving']['Hx'] += mu1 * (EH['solving']['Ez'][:, 1:, :] - EH['solving']['Ez'][:, :-1, :] - EH['solving']['Ey'][:, :, 1:] + EH['solving']['Ey'][:, :, :-1])
                         EH['solving']['Hy'] += mu1 * (EH['solving']['Ex'][:, :, 1:] - EH['solving']['Ex'][:, :, :-1] - EH['solving']['Ez'][1:, :, :] + EH['solving']['Ez'][:-1, :, :])
