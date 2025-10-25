@@ -7,7 +7,7 @@ from typing import Literal, Tuple, Union
 
 
 #IMPORTANT: While the code itself may not be written as optimally as possible, the algorithms are
-def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, sizes: Tuple[int], npy: bool, simulations: list[dict], param = None, eps: float = 8.854e-12, mu: float = np.pi * 4e-7, device: Literal['cpu', 'cuda'] = 'cuda', solver: bool = False, ignore_error: bool = False, start_t = 0.0):
+def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, sizes: Tuple[int], npy: bool, simulations: list[dict], param = None, eps: float = 8.854e-12, mu: float = np.pi * 4e-7, device: Literal['cpu', 'cuda'] = 'cuda', solver: bool = False, ignore_error: bool = False, start_t = 0.0, noise = [0, 0]):
     #Initial setup
     c = 1/np.sqrt(mu * eps).item()
     def omega_num(fx, fy, fz, dx, dt):
@@ -322,7 +322,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
         elif boundary == "Periodic":
             cell_size = 1 / grid_size
         #t = 1 / grid_size / c / np.sqrt(3).item() * 0.9330127
-        t =  0.0002 / grid_size / c / np.sqrt(3).item()
+        t =  0.9 / grid_size / c / np.sqrt(3).item()
         #Reused constants
         eps1 = t / eps / cell_size
         mu1 = -t / mu / cell_size
@@ -375,6 +375,10 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                     for d in order:
                         #EH['solving'][d] = torch.tensor(EH['solver'][d](X[ixer[d]], Y[ixer[d]], Z[ixer[d]], yee[d][3] * t, grid_size), device = device, dtype = precision)
                         EH['solving'][d] = EH['solver'][d](y[ixer[d][0], None, None], y[None, ixer[d][1], None], y[None, None, ixer[d][2]], yee[d][3] * t + start_t, grid_size, t)
+                        for i in range(max(noise)):
+                            z = torch.sin(2 * np.pi * y * (i + 1))
+                            EH['solving'][d] += error * (z[ixer[d][0], None, None] * (i < noise[0]) + z[None, None, ixer[d][2]] * (i < noise[1])) * z[None, ixer[d][1], None]
+                            pass
             elif boundary == "PEC":
                 if solution == 2:
                     grid_size += 1
