@@ -377,7 +377,7 @@ def multi_test(boundary: Literal["PEC", "Periodic"], solution: int, iters: int, 
                         EH['solving'][d] = EH['solver'][d](y[ixer[d][0], None, None], y[None, ixer[d][1], None], y[None, None, ixer[d][2]], yee[d][3] * t + start_t, grid_size, t)
                         for i in range(max(noise)):
                             z = torch.sin(2 * np.pi * y * (i + 1))
-                            EH['solving'][d] += error * (z[ixer[d][0], None, None] * (i < noise[0]) + z[None, None, ixer[d][2]] * (i < noise[1])) * z[None, ixer[d][1], None]
+                            EH['solving'][d] += 1e-6 * (z[ixer[d][0], None, None] * (i < noise[0]) + z[None, None, ixer[d][2]] * (i < noise[1])) * z[None, ixer[d][1], None]
                             pass
             elif boundary == "PEC":
                 if solution == 2:
